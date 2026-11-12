@@ -1,0 +1,13 @@
+node_modules/
+dist/
+helper-bin/
+helper/IslandHelper/bin/
+helper/IslandHelper/obj/
+
+# Lirik ini tersimpan dari pemakaian pribadi; jangan ikut ke repo publik.
+lyrics/*.lrc
+lyrics/*.elrc
+!lyrics/.gitkeep
+
+# Arsip kerja lokal
+kiraspace.zip

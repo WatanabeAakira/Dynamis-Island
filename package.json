@@ -1,0 +1,63 @@
+{
+  "name": "dynamis-island",
+  "productName": "Dynamis Island",
+  "appId": "com.dynamis.island",
+  "version": "0.1.0",
+  "description": "Dynamic island untuk Windows (Electron)",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:helper": "dotnet publish helper/IslandHelper -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o helper-bin",
+    "build:win": "npm run build:helper && electron-builder --win nsis",
+    "release:win": "npm run build:helper && electron-builder --win nsis --publish always"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "asar": true,
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "WatanabeAakira",
+        "repo": "Dynamis-Island",
+        "releaseType": "release"
+      }
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "helper-bin",
+        "to": "helper-bin",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "src/assets/dynamis.ico",
+      "artifactName": "Dynamis-Island-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true
+    }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
+  }
+}

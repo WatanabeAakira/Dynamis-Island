@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <title>Pengaturan Dynamis Island</title>
+  <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+  <div class="win">
+    <header class="bar">
+      <div class="lights">
+        <button class="tl close" data-a="close" aria-label="Tutup" title="Tutup"><svg viewBox="0 0 10 10" aria-hidden="true"><path d="M3 3l4 4M7 3l-4 4"/></svg></button>
+        <button class="tl min" data-a="min" aria-label="Kecilkan" title="Kecilkan"><svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2.5 5h5"/></svg></button>
+        <button class="tl max" data-a="max" aria-label="Perbesar" title="Perbesar"><svg viewBox="0 0 10 10" aria-hidden="true"><path d="M3 7l4-4M3.5 3h3.5v3.5"/></svg></button>
+      </div>
+      <div class="bt" id="bt">Pengaturan</div>
+      <div class="bspace" aria-hidden="true"></div>
+    </header>
+    <div class="app">
+      <aside class="side" id="side"></aside>
+      <main class="main" id="main"></main>
+    </div>
+  </div>
+  <script type="module" src="settings.js"></script>
+</body>
+</html>

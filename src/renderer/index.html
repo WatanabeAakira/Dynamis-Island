@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: file:;">
+  <title>Island</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="island" data-mode="collapsed">
+    <div class="clip">
+    <div class="glow-wrap" aria-hidden="true"><div class="glow"></div><div class="glow"></div></div>
+    <div class="theme-bg" aria-hidden="true"></div>
+    <div class="pill" id="pill">
+      <svg id="pill-note" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+      <img id="pill-art" alt="" hidden>
+      <span id="pill-time">--:--</span>
+      <span id="pill-lyric"></span>
+      <span class="wave mini" id="pill-wave" hidden><i></i><i></i><i></i><i></i></span>
+    </div>
+    <div class="toast-box" id="toast-box" aria-hidden="true">
+      <div class="toast-cover">
+        <svg class="ic-note" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+        <svg class="ic-bell" viewBox="0 0 24 24"><path d="M6 9a6 6 0 0 1 12 0c0 6.5 2.5 8 2.5 8h-17S6 15.5 6 9"/><path d="M10 21h4"/></svg>
+        <img id="toast-art" alt="" hidden>
+      </div>
+      <div class="toast-text"><b id="toast-title"></b><span id="toast-artist"></span></div>
+    </div>
+    <div class="cmp" id="cmp" hidden></div>
+    <nav class="tabbar" id="tabbar" aria-label="Fitur"></nav>
+    <section class="content" id="content"></section>
+    </div>
+    <i class="ear l" aria-hidden="true"></i><i class="ear r" aria-hidden="true"></i>
+  </div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
