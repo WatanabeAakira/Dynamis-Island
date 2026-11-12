@@ -29,6 +29,19 @@ jobs:
       - name: Install dependency
         run: npm ci
 
+      # Bikin satu release dulu supaya beberapa aset yang di-upload barengan
+      # electron-builder masuk ke release yang sama, bukan bikin release duplikat.
+      - name: Siapkan satu GitHub Release
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --draft --title $tag --notes "Dynamis Island $tag"
+          }
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build installer dan upload ke GitHub Releases
         run: npm run release:win
         env:
