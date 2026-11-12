@@ -1,6 +1,7 @@
-// Window Pengaturan: island untuk melakukan sesuatu, pengaturan untuk mengatur cara kerjanya.
+// Window pengaturan untuk preferensi aplikasi dan fitur.
 import { compactIcon } from '../renderer/tray-icons.js';
 import { MODELS, DEFAULT_MODEL } from '../renderer/ai-core.js';
+import { localizeTree } from '../renderer/locale.js';
 
 const api = window.api;
 
@@ -74,7 +75,11 @@ const card = (...rows) => h('div', { class: 'card' }, rows);
 // ---------- Data ----------
 let S = {};
 async function save(patch) { S = await api.setSettings(patch); }
-api.onSettings((s) => { S = s; });
+api.onSettings((s) => {
+  const changed = S.language !== s.language;
+  S = s;
+  if (changed) { buildNav(); show(current); }
+});
 
 // ---------- Halaman ----------
 const ACCENTS = ['#8b9bff', '#6ee7b7', '#fbbf77', '#f7a1c4', '#7dd3fc', '#c4b5fd'];
@@ -92,6 +97,18 @@ function pageGeneral(root) {
     ),
     h('div', { class: 'card about' }, h('i', { html: IC.brand }), h('div', {}, h('b', {}, 'Dynamis Island'), ver))
   );
+}
+
+function pageLanguage(root) {
+  const select = h('select', { class: 'txt', 'aria-label': 'Bahasa aplikasi' });
+  select.append(h('option', { value: 'id' }, 'Bahasa Indonesia'), h('option', { value: 'en' }, 'English'));
+  select.value = S.language === 'en' ? 'en' : 'id';
+  select.addEventListener('change', async () => {
+    S = await api.setSettings({ language: select.value });
+    buildNav();
+    show('language');
+  });
+  root.append(card(row('Bahasa aplikasi', 'Pilih bahasa yang dipakai di aplikasi. Perubahan langsung diterapkan.', select)));
 }
 
 function pageAppearance(root) {
@@ -353,6 +370,7 @@ function pageAi(root) {
 // ---------- Navigasi ----------
 const PAGES = {
   general: { title: 'Umum', desc: 'Pengaturan dasar aplikasi.', icon: IC.general, build: pageGeneral },
+  language: { title: 'Bahasa', desc: 'Atur bahasa yang dipakai aplikasi.', icon: IC.general, build: pageLanguage },
   appearance: { title: 'Tampilan', desc: 'Warna dan gaya island.', icon: IC.appearance, build: pageAppearance },
   behavior: { title: 'Perilaku', desc: 'Kapan island terbuka dan tertutup.', icon: IC.behavior, build: pageBehavior },
   apps: { title: 'Pintasan Aplikasi', desc: 'Aplikasi favorit, tampilan, dan perilaku di island.', icon: IC.apps, build: pageApps },
@@ -362,13 +380,13 @@ const PAGES = {
   lyrics: { title: 'Lirik', desc: 'Sumber, waktu, dan salinan lirik di tab Media.', icon: IC.lyrics, build: pageLyrics }
 };
 const NAV = [
-  { id: 'general' }, { id: 'appearance' }, { id: 'behavior' },
+  { id: 'general' }, { id: 'language' }, { id: 'appearance' }, { id: 'behavior' },
   { group: 'Fitur', icon: IC.features, kids: ['ai', 'notif', 'apps', 'tray', 'lyrics'] }
 ];
 
 // Warna ikon per halaman (gaya ikon sistem macOS)
-const TILE = { general: '#8e8e93', appearance: '#0a84ff', behavior: '#ff9f0a', ai: '#bf5af2', notif: '#ff453a', apps: '#30b0c7', tray: '#5e5ce6', lyrics: '#ff375f' };
-const SECTIONS = [{ id: 'general' }, { id: 'appearance' }, { id: 'behavior' }, { sec: 'Fitur', ids: ['ai', 'notif', 'apps', 'tray', 'lyrics'] }];
+const TILE = { general: '#8e8e93', language: '#5e5ce6', appearance: '#0a84ff', behavior: '#ff9f0a', ai: '#bf5af2', notif: '#ff453a', apps: '#30b0c7', tray: '#5e5ce6', lyrics: '#ff375f' };
+const SECTIONS = [{ id: 'general' }, { id: 'language' }, { id: 'appearance' }, { id: 'behavior' }, { sec: 'Fitur', ids: ['ai', 'notif', 'apps', 'tray', 'lyrics'] }];
 
 let current = 'general';
 function show(id) {
@@ -381,6 +399,9 @@ function show(id) {
     h('i', { html: p.icon, style: `background:${TILE[id]}` }),
     h('div', {}, h('h1', {}, p.title), h('p', {}, p.desc))));
   p.build(main);
+  document.documentElement.lang = S.language === 'en' ? 'en' : 'id';
+  document.title = S.language === 'en' ? 'Dynamis Island Settings' : 'Pengaturan Dynamis Island';
+  localizeTree(document.body, S.language);
   main.scrollTop = 0;
   document.querySelectorAll('.nav button[data-page]').forEach((b) => b.classList.toggle('on', b.dataset.page === id));
 }
@@ -397,6 +418,7 @@ function buildNav() {
   document.getElementById('side').replaceChildren(
     h('div', { class: 'profile' }, h('i', { html: IC.brand }), h('div', {}, h('b', {}, 'Dynamis Island'), h('small', {}, 'Pengaturan'))),
     nav);
+  localizeTree(document.body, S.language);
 }
 
 // Tombol lampu lalu lintas (tutup, kecilkan, perbesar) menggantikan title bar Windows

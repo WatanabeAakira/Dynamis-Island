@@ -16,6 +16,7 @@ import { setNotifLimit } from './notifkeeper.js';
 import { setNoticeMs } from './toast.js';
 import './compact.js';
 import { pillInfo, onAnyTimer } from './timekeeper.js';
+import { localizeTree, tr } from './locale.js';
 
 // Tab yang sudah punya tampilan sendiri (selain media dan pengaturan). Tab baru cukup ditambah di sini.
 const VIEWS = { clock: renderClock, timer: renderTimeTab, calendar: renderCalendar, weather: renderWeather, audio: renderAudio, files: renderFiles, apps: renderApps, notif: renderNotif, ai: renderAi };
@@ -81,8 +82,9 @@ function setPinned(value) {
 
 // ---------- Tab bar ----------
 function buildTabbar() {
+  const language = settings.language === 'en' ? 'en' : 'id';
   const btn = (id, title) =>
-    `<button class="tab-btn" data-tab="${id}" title="${title}" aria-label="${title}">${ICONS[id]}</button>`;
+    `<button class="tab-btn" data-tab="${id}" title="${tr(title, language)}" aria-label="${tr(title, language)}">${ICONS[id]}</button>`;
   tabbar.innerHTML =
     TABS.map(t => btn(t.id, t.title)).join('') +
     '<div class="tab-sep"></div>' +
@@ -113,17 +115,20 @@ function markActive() {
 
 function renderActive() {
   const view = VIEWS[activeTab];
-  if (view) { view(content); return; }
+  if (view) { view(content); localizeTree(content, settings.language); return; }
   if (activeTab === 'media') {
     renderMedia(content);
+    localizeTree(content, settings.language);
     return;
   }
   if (activeTab === 'settings') {
     renderSettings(content, applySettings);
+    localizeTree(content, settings.language);
     return;
   }
   const tab = TABS.find(t => t.id === activeTab);
   if (tab) renderPlaceholder(content, tab);
+  localizeTree(content, settings.language);
 }
 
 tabbar.addEventListener('click', (e) => {
@@ -310,7 +315,15 @@ document.addEventListener('focusout', () => {
 });
 
 // ---------- Perubahan dari window Pengaturan ----------
-window.api.onSettings(applySettings);
+window.api.onSettings((s) => {
+  const languageChanged = settings.language !== s.language;
+  applySettings(s);
+  if (languageChanged) {
+    buildTabbar();
+    if (activeTab) renderActive();
+    else localizeTree(document.body, s.language);
+  }
+});
 window.api.onLyricsChanged(reloadLyrics);
 
 // ---------- Buka tab dari notifikasi (mis. klik notifikasi timer membuka tab Timer) ----------

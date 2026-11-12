@@ -1,5 +1,4 @@
-// Registry tab. Tiap fitur nanti dipindah ke modul sendiri (tabs/<nama>.js)
-// dengan fungsi render(container) yang sama bentuknya dengan placeholder di bawah.
+// Registry tab dan placeholder untuk fitur yang belum punya tampilan khusus.
 
 const svg = (body) =>
   `<svg viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`;
@@ -18,7 +17,7 @@ export const ICONS = {
   settings: svg('<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/>')
 };
 
-// stage = tahap pengerjaan (sesuai rencana)
+// Metadata tab dipakai untuk judul, ikon, dan placeholder.
 export const TABS = [
   { id: 'media',    title: 'Media Player',           stage: 2, hint: 'Cover album, lirik, dan kontrol pemutaran' },
   { id: 'timer',    title: 'Timer, Focus, Alarm',    stage: 4, hint: 'Tiga kartu: timer, sesi fokus, dan alarm' },

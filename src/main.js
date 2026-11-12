@@ -15,6 +15,7 @@ const WIN_W = 700;
 const WIN_H = 340;
 
 const DEFAULT_SETTINGS = {
+  language: 'id',
   ai: { model: 'llama-3.1-8b-instant', historyLimit: 20, ctxMedia: true, ctxWeather: true, ctxSchedule: true }, // asisten AI (kunci API disimpan terpisah)
   notif: { noticeMs: 7000, historyLimit: 50, showBody: true }, // pengaturan Notifikasi
   accent: '#8b9bff',
