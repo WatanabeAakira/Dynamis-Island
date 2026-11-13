@@ -118,7 +118,7 @@ function markActive() {
 
 function renderActive() {
   const view = VIEWS[activeTab];
-  if (view) { view(content); localizeTree(content, settings.language); return; }
+  if (view) { view(content, settings); localizeTree(content, settings.language); return; }
   if (activeTab === 'media') {
     renderMedia(content);
     localizeTree(content, settings.language);
@@ -322,7 +322,7 @@ document.addEventListener('focusout', () => {
 window.api.onSettings((s) => {
   const languageChanged = settings.language !== s.language;
   applySettings(s);
-  if (languageChanged) {
+  if (languageChanged || activeTab === 'clock') {
     buildTabbar();
     if (activeTab) renderActive();
     else localizeTree(document.body, s.language);
