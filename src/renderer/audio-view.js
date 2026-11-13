@@ -40,21 +40,35 @@ export function renderAudio(c) {
         <div class="au-tt"><b>Audio Control</b><small id="au-sub">Memuat...</small></div>
         <button class="au-ib" id="au-more" aria-label="Lainnya" title="Lainnya">${svg(I.more)}</button>
       </header>
-      <div class="au-sys">
-        <span class="au-si" id="au-si">${speaker(0.5, false)}</span>
-        <span class="au-sl">Volume sistem</span>
-        <div class="sl big au-msl" id="au-msl"><i class="fill"></i><i class="knob"></i></div>
-        <span class="au-pct" id="au-pct">--%</span>
-        <button class="au-mb" id="au-mmute" aria-label="Bisukan volume sistem">${svg(I.mute)}</button>
+      <div class="au-main">
+        <section class="au-left" aria-label="Kontrol sistem">
+          <div class="au-sys">
+            <div class="au-sys-head">
+              <span class="au-si" id="au-si">${speaker(0.5, false)}</span>
+              <span class="au-sl">Volume sistem</span>
+              <span class="au-pct" id="au-pct">--%</span>
+              <button class="au-mb" id="au-mmute" aria-label="Bisukan volume sistem">${svg(I.mute)}</button>
+            </div>
+            <div class="sl big au-msl" id="au-msl"><i class="fill"></i><i class="knob"></i></div>
+          </div>
+          <div class="au-dev">
+            <div class="au-dev-head">
+              <span class="au-di">${svg(I.head)}</span>
+              <span class="au-dl">Perangkat output</span>
+            </div>
+            <select class="au-dn" id="au-dev" aria-label="Pilih perangkat output"><option value="">Menunggu perangkat</option></select>
+          </div>
+          <small class="au-status" id="au-status" role="status" aria-live="polite" hidden></small>
+        </section>
+        <section class="au-right" aria-label="Volume per aplikasi">
+          <div class="au-app-head">
+            <span class="au-app-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+            <b>Volume per aplikasi</b>
+          </div>
+          <div class="au-list" id="au-list"></div>
+          <div class="au-empty" id="au-empty" hidden></div>
+        </section>
       </div>
-      <div class="au-dev">
-        <span class="au-di">${svg(I.head)}</span>
-        <span class="au-dl">Perangkat output</span>
-        <select class="au-dn" id="au-dev" aria-label="Pilih perangkat output"><option value="">Menunggu perangkat</option></select>
-      </div>
-      <small class="au-status" id="au-status" role="status" aria-live="polite" hidden></small>
-      <div class="au-list" id="au-list"></div>
-      <div class="au-empty" id="au-empty" hidden></div>
       <div class="au-menu-host"></div>
     </div>`;
 
