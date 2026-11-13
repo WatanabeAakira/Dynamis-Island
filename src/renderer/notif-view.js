@@ -1,5 +1,6 @@
 // Tab Notifikasi: daftar notifikasi island, filter, cari, tandai dibaca, hapus, dan buka sumbernya.
 import { notifs, onNotifs, markRead, markAll, removeNotif, clearAll, unreadCount, SOURCES } from './notifkeeper.js';
+import { getLanguage } from './locale.js';
 
 const island = document.getElementById('island');
 const svg = (b) => `<svg viewBox="0 0 24 24" aria-hidden="true">${b}</svg>`;
@@ -33,9 +34,10 @@ window.api.onSettings((s) => { showBody = !s.notif || s.notif.showBody !== false
 const fmtTime = (ts) => {
   const d = new Date(ts), n = new Date();
   const same = d.toDateString() === n.toDateString();
+  const locale = getLanguage() === 'en' ? 'en-US' : 'id-ID';
   return same
-    ? d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false })
-    : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+    ? d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: false })
+    : d.toLocaleDateString(locale, { day: 'numeric', month: 'short' });
 };
 
 export function renderNotif(c) {

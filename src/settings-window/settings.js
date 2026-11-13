@@ -1,7 +1,7 @@
 // Window pengaturan untuk preferensi aplikasi dan fitur.
 import { compactIcon } from '../renderer/tray-icons.js';
 import { MODELS, DEFAULT_MODEL } from '../renderer/ai-core.js';
-import { localizeTree } from '../renderer/locale.js';
+import { localizeTree, setLanguage, watchLocale } from '../renderer/locale.js';
 
 const api = window.api;
 
@@ -105,6 +105,7 @@ function pageLanguage(root) {
   select.value = S.language === 'en' ? 'en' : 'id';
   select.addEventListener('change', async () => {
     S = await api.setSettings({ language: select.value });
+    setLanguage(S.language);
     buildNav();
     show('language');
   });
@@ -392,6 +393,7 @@ let current = 'general';
 function show(id) {
   if (!PAGES[id]) id = 'general';
   current = id;
+  setLanguage(S.language);
   const p = PAGES[id];
   document.getElementById('bt').textContent = p.title;
   const main = document.getElementById('main');
@@ -428,6 +430,8 @@ function wireWindow() {
 
 async function init() {
   S = await api.getSettings();
+  setLanguage(S.language);
+  watchLocale(document.body, () => S.language);
   wireWindow();
   buildNav();
   show((location.hash || '').slice(1) || 'general');

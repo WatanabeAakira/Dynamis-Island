@@ -2,6 +2,7 @@
 import { icon, label } from './weather-icons.js';
 import { toMs, hhmm, pickHours, sunProgress, arcPath, arcPoint, fmtTemp, compass, uvLevel, dayName, distKm } from './weather-core.js';
 import { BACK_BTN } from './timer-view.js';
+import { getLanguage } from './locale.js';
 
 const island = document.getElementById('island');
 const svg = (b) => `<svg viewBox="0 0 24 24" aria-hidden="true">${b}</svg>`;
@@ -195,7 +196,7 @@ function drawMain(c) {
     if (!d) return;
     const now = new Date();
     txt('clock', q('#wx-clock'), now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: d.tz }));
-    txt('date', q('#wx-date'), now.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short', timeZone: d.tz }));
+    txt('date', q('#wx-date'), now.toLocaleDateString(getLanguage() === 'en' ? 'en-US' : 'id-ID', { weekday: 'long', day: 'numeric', month: 'short', timeZone: d.tz }));
     const m = Math.floor(Date.now() / 60000);
     if (force || m !== lastMin) { lastMin = m; if (st.mode === 'hour') html('panel', q('#wx-panel'), panelHtml()); }
     if (force || Date.now() - lastSky > 20000) { lastSky = Date.now(); paintSky(); }

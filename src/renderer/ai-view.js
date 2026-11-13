@@ -5,6 +5,7 @@ import { eventsOn, addEvent, ymd } from './calkeeper.js';
 import { timerSet, timerStart } from './timekeeper.js';
 import { newAlarm, updateAlarm } from './alarmkeeper.js';
 import { label as wxLabel } from './weather-icons.js';
+import { getLanguage } from './locale.js';
 
 const island = document.getElementById('island');
 const svg = (b) => `<svg viewBox="0 0 24 24" aria-hidden="true">${b}</svg>`;
@@ -49,7 +50,7 @@ function saveHistory() {
 const raceTimeout = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r(null), ms))]);
 async function buildContext() {
   const c = cfg();
-  const now = new Date().toLocaleString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', hour12: false });
+  const now = new Date().toLocaleString(getLanguage() === 'en' ? 'en-US' : 'id-ID', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', hour12: false });
   const m = c.ctxMedia ? mediaNow() : null;
   const media = m && m.active && m.title ? { title: m.title, artist: m.artist } : null;
   let weather = null;

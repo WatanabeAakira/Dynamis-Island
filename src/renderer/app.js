@@ -16,7 +16,7 @@ import { setNotifLimit } from './notifkeeper.js';
 import { setNoticeMs } from './toast.js';
 import './compact.js';
 import { pillInfo, onAnyTimer } from './timekeeper.js';
-import { localizeTree, tr } from './locale.js';
+import { getLanguage, localizeTree, setLanguage, tr, watchLocale } from './locale.js';
 
 // Tab yang sudah punya tampilan sendiri (selain media dan pengaturan). Tab baru cukup ditambah di sini.
 const VIEWS = { clock: renderClock, timer: renderTimeTab, calendar: renderCalendar, weather: renderWeather, audio: renderAudio, files: renderFiles, apps: renderApps, notif: renderNotif, ai: renderAi };
@@ -35,10 +35,13 @@ let pointerInside = false;
 let pinnedOpen = false;
 
 applySettings(settings);
+watchLocale(document.body, () => settings.language);
 initMedia();
 
 function applySettings(s) {
   settings = s;
+  setLanguage(s.language);
+  document.documentElement.lang = s.language === 'en' ? 'en' : 'id';
   document.documentElement.style.setProperty('--accent', s.accent);
   setAccentSettings(s.accentFromCover, s.accent);
   setLyricsOffset(s.lyricsOffset || 0);
@@ -176,7 +179,8 @@ function tick() {
     pill.dataset.kind = info.kind;
   } else {
     const d = new Date();
-    pillTime.textContent = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }).replace('.', ':');
+    const locale = getLanguage() === 'en' ? 'en-US' : 'id-ID';
+    pillTime.textContent = d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: false }).replace('.', ':');
   }
   pill.classList.toggle('timing', !!info);
 }

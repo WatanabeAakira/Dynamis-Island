@@ -1,4 +1,10 @@
-# Windows Island (Tahap 1: fondasi)
+# Dynamis Island
+
+> A Windows dynamic island for media controls, timers, weather, notifications, and productivity tools.
+
+## Latest release — v0.1.2
+
+Complete English localization across the Island and separate Settings window, including dynamic status messages, menus, search states, and date formatting. Indonesian remains the default language.
 
 Project ini bisa bikin installer Windows dan update otomatis dari GitHub Releases. Setup repo dan cara nerbitin versi baru ada di [PANDUAN-GITHUB-RELEASES.md](PANDUAN-GITHUB-RELEASES.md).
 

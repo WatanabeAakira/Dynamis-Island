@@ -1,4 +1,5 @@
 // Tab Jam: kiri jam digital, kanan jam analog yang bergerak mulus.
+import { getLanguage } from './locale.js';
 
 const pad = (n) => String(n).padStart(2, '0');
 
@@ -61,7 +62,7 @@ export function renderClock(container) {
     if (s !== lastSec) { lastSec = s; sec.textContent = pad(s); }
     if (d.getDate() !== lastDay) {
       lastDay = d.getDate();
-      date.textContent = d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      date.textContent = d.toLocaleDateString(getLanguage() === 'en' ? 'en-US' : 'id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
       sub.textContent = tzText();
     }
     requestAnimationFrame(frame);
