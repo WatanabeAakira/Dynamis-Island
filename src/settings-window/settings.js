@@ -25,6 +25,7 @@ const IC = {
   behavior: svg('<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>'),
   features: svg('<path d="M3.5 8L12 3.5 20.5 8v8L12 20.5 3.5 16z"/><path d="M3.5 8L12 12.5 20.5 8M12 12.5v8"/>'),
   lyrics: svg('<path d="M4 6.5h10M4 12h16M4 17.5h12"/>'),
+  clock: svg('<circle cx="12" cy="12" r="9"/><path d="M12 6.5V12l3.5 2"/>'),
   apps: svg('<rect x="4" y="4" width="6.5" height="6.5" rx="1.8"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.8"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.8"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.8"/>'),
   ai: svg('<circle cx="12" cy="12" r="8"/><path d="M8 12c1.2-2.4 2.6-3.6 4-3.6s2.8 1.2 4 3.6"/>'),
   notif: svg('<path d="M6 9a6 6 0 0 1 12 0c0 6.5 2.5 8 2.5 8h-17S6 15.5 6 9"/><path d="M10 21h4"/>'),
@@ -139,6 +140,36 @@ function pageBehavior(root) {
     row('Buka island saat kursor di atasnya', 'Jika dimatikan, island dibuka dengan klik.', toggle(S.openOnHover, (v) => save({ openOnHover: v }))),
     row('Jeda sebelum menutup', 'Waktu tunggu setelah kursor meninggalkan island sebelum island menutup.', h('div', { class: 'rg' }, range, out)),
     row('Info lagu di mode collapse', 'Saat lagu berganti, island yang tertutup menampilkan cover dan judul sebentar.', toggle(S.trackToast !== false, (v) => save({ trackToast: v })))
+  ));
+}
+
+const CLOCK_DEFAULTS = { timeFormat: '24h', dateFormat: 'long', showSeconds: true, showAdditionalInfo: true, analogSecondHand: true };
+const CT = () => ({ ...CLOCK_DEFAULTS, ...(S.clock || {}) });
+const saveClock = (patch) => save({ clock: { ...CT(), ...patch } });
+
+function pageClock(root) {
+  const c = CT();
+  const dates = h('select', { class: 'txt', 'aria-label': 'Format tanggal' });
+  const sample = new Date(2026, 10, 6);
+  const locale = S.language === 'en' ? 'en-US' : 'id-ID';
+  const longDate = new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(sample);
+  const shortDate = new Intl.DateTimeFormat(locale, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }).format(sample);
+  const labels = S.language === 'en'
+    ? [`Long (${longDate})`, `Abbreviated (${shortDate})`, 'Numeric (2026-11-06)']
+    : [`Panjang (${longDate})`, `Singkat (${shortDate})`, 'Numerik (2026-11-06)'];
+  dates.append(
+    h('option', { value: 'long' }, labels[0]),
+    h('option', { value: 'abbreviated' }, labels[1]),
+    h('option', { value: 'numeric' }, labels[2])
+  );
+  dates.value = c.dateFormat;
+  dates.addEventListener('change', () => saveClock({ dateFormat: dates.value }));
+  root.append(card(
+    row('Format waktu', 'Pilih format 12 jam atau 24 jam.', segmented([['24h', '24-Jam'], ['12h', '12-Jam']], c.timeFormat, (v) => saveClock({ timeFormat: v }))),
+    row('Format tanggal', 'Bahasa mengikuti bahasa aplikasi dan lokal Windows.', dates),
+    row('Tampilkan detik digital', 'Tampilkan detik pada jam digital.', toggle(c.showSeconds, (v) => saveClock({ showSeconds: v }))),
+    row('Tampilkan info tambahan', 'Minggu, hari ke-, dan waktu aktif aplikasi.', toggle(c.showAdditionalInfo, (v) => saveClock({ showAdditionalInfo: v }))),
+    row('Jarum detik analog', 'Gerakan jarum detik yang halus dan terus-menerus.', toggle(c.analogSecondHand, (v) => saveClock({ analogSecondHand: v })))
   ));
 }
 
@@ -374,6 +405,7 @@ const PAGES = {
   language: { title: 'Bahasa', desc: 'Atur bahasa yang dipakai aplikasi.', icon: IC.general, build: pageLanguage },
   appearance: { title: 'Tampilan', desc: 'Warna dan gaya island.', icon: IC.appearance, build: pageAppearance },
   behavior: { title: 'Perilaku', desc: 'Kapan island terbuka dan tertutup.', icon: IC.behavior, build: pageBehavior },
+  clock: { title: 'Jam', desc: 'Format waktu, tanggal, dan tampilan jam.', icon: IC.clock, build: pageClock },
   apps: { title: 'Pintasan Aplikasi', desc: 'Aplikasi favorit, tampilan, dan perilaku di island.', icon: IC.apps, build: pageApps },
   ai: { title: 'Asisten AI', desc: 'Kunci API Groq, model, dan konteks yang dipakai asisten.', icon: IC.ai, build: pageAi },
   notif: { title: 'Notifikasi', desc: 'Durasi banner, riwayat, dan isi pesan notifikasi.', icon: IC.notif, build: pageNotif },
@@ -382,12 +414,12 @@ const PAGES = {
 };
 const NAV = [
   { id: 'general' }, { id: 'language' }, { id: 'appearance' }, { id: 'behavior' },
-  { group: 'Fitur', icon: IC.features, kids: ['ai', 'notif', 'apps', 'tray', 'lyrics'] }
+  { group: 'Fitur', icon: IC.features, kids: ['ai', 'notif', 'apps', 'tray', 'lyrics', 'clock'] }
 ];
 
 // Warna ikon per halaman (gaya ikon sistem macOS)
-const TILE = { general: '#8e8e93', language: '#5e5ce6', appearance: '#0a84ff', behavior: '#ff9f0a', ai: '#bf5af2', notif: '#ff453a', apps: '#30b0c7', tray: '#5e5ce6', lyrics: '#ff375f' };
-const SECTIONS = [{ id: 'general' }, { id: 'language' }, { id: 'appearance' }, { id: 'behavior' }, { sec: 'Fitur', ids: ['ai', 'notif', 'apps', 'tray', 'lyrics'] }];
+const TILE = { general: '#8e8e93', language: '#5e5ce6', appearance: '#0a84ff', behavior: '#ff9f0a', clock: '#0a84ff', ai: '#bf5af2', notif: '#ff453a', apps: '#30b0c7', tray: '#5e5ce6', lyrics: '#ff375f' };
+const SECTIONS = [{ id: 'general' }, { id: 'language' }, { id: 'appearance' }, { id: 'behavior' }, { sec: 'Fitur', ids: ['ai', 'notif', 'apps', 'tray', 'lyrics', 'clock'] }];
 
 let current = 'general';
 function show(id) {

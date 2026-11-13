@@ -40,6 +40,7 @@ html, body {
 }
 #island[data-mode="hover"]     { --w: 590px; --h: 62px;  --r: 31px; }
 #island[data-mode="expanded"]  { --w: 650px; --h: 286px; --r: 34px; }
+#island[data-mode="expanded"][data-tab="clock"] { --h: 306px; }
 
 /* ---------- Mode collapse ---------- */
 .pill {
@@ -289,22 +290,46 @@ input[type="range"] { width: 130px; accent-color: var(--accent); }
 .lm-empty { margin: 22px 0 0; font-size: 13px; color: var(--muted); text-align: center; line-height: 1.5; }
 
 /* ---------- Tab Jam ---------- */
-.clock { display: flex; align-items: center; justify-content: space-between; gap: 28px; }
-.ck-digital { flex: 1; min-width: 0; }
-.ck-time { display: flex; align-items: baseline; gap: 10px; line-height: 1; font-variant-numeric: tabular-nums; }
-#ck-hm { font-size: 68px; font-weight: 300; letter-spacing: -.02em; }
-.ck-sec { font-size: 24px; font-weight: 500; color: var(--accent); }
-.ck-date { margin-top: 14px; font-size: 15px; color: rgba(255, 255, 255, .88); }
-.ck-sub { margin-top: 3px; font-size: 12.5px; color: var(--muted); }
-.ck-analog { flex: none; width: 196px; height: 168px; display: grid; place-items: center; border-left: 1px solid var(--line); padding-left: 28px; }
+.clock { display: flex; flex-direction: column; gap: 8px; }
+.ck-head { flex: none; height: 38px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ck-id { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ck-logo { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 11px; color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 34%, transparent); }
+.ck-logo svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ck-title { min-width: 0; line-height: 1.2; }
+.ck-title b { display: block; font-size: 15px; font-weight: 650; }
+.ck-title small { display: block; max-width: 320px; overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.ck-controls { display: flex; align-items: center; gap: 6px; }
+.ck-control, .ck-format { height: 30px; flex: none; display: grid; place-items: center; border: 0; border-radius: 10px; background: rgba(255, 255, 255, .07); color: #fff; cursor: pointer; transition: background .2s, color .2s; }
+.ck-control { width: 30px; }
+.ck-control:hover, .ck-format:hover { background: color-mix(in srgb, var(--accent) 26%, rgba(255, 255, 255, .08)); }
+.ck-control svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ck-format { min-width: 38px; padding: 0 9px; font-family: inherit; font-size: 11px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.ck-control:focus-visible, .ck-format:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ck-main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 164px; align-items: center; gap: 17px; }
+.ck-digital { min-width: 0; }
+.ck-time { min-height: 68px; display: flex; align-items: baseline; gap: 0; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#ck-hm { font-size: 63px; font-weight: 300; letter-spacing: -.045em; }
+.ck-sec { color: var(--accent); font-size: 30px; font-weight: 500; letter-spacing: -.03em; }
+.ck-sec:not([hidden])::before { content: ':'; }
+.ck-period { margin-left: 6px; color: var(--muted); font-size: 12px; font-weight: 650; }
+.ck-date { margin-top: 2px; overflow: hidden; color: rgba(255, 255, 255, .84); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.ck-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; margin-top: 13px; }
+.ck-stat { min-width: 0; height: 42px; display: flex; align-items: center; gap: 6px; padding: 0 7px; border: 1px solid rgba(255, 255, 255, .075); border-radius: 12px; background: rgba(255, 255, 255, .045); }
+.ck-stat svg { width: 17px; height: 17px; flex: none; fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ck-stat span { display: block; min-width: 0; }
+.ck-stat small { display: block; overflow: hidden; color: var(--muted); font-size: 9px; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
+.ck-stat b { display: block; overflow: hidden; font-size: 11px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.ck-analog { width: 180px; height: 168px; display: grid; place-items: center; border-left: 1px solid var(--line); padding-left: 14px; }
 .ck-analog svg { width: 164px; height: 164px; overflow: visible; }
-.ck-analog .face { fill: rgba(255, 255, 255, .03); stroke: rgba(255, 255, 255, .12); stroke-width: 1.2; }
-.ck-analog .tk { stroke: rgba(255, 255, 255, .28); stroke-width: 1; stroke-linecap: round; }
-.ck-analog .tk.major { stroke: rgba(255, 255, 255, .8); stroke-width: 2.2; }
+.ck-analog .face { fill: rgba(255, 255, 255, .025); stroke: color-mix(in srgb, var(--accent) 62%, rgba(255, 255, 255, .18)); stroke-width: 1.5; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 38%, transparent)); }
+.ck-analog .tk { stroke: rgba(255, 255, 255, .3); stroke-width: 1; stroke-linecap: round; }
+.ck-analog .tk.major { stroke: rgba(255, 255, 255, .78); stroke-width: 2; }
+.ck-analog text { fill: rgba(255, 255, 255, .92); font: 600 10px 'Segoe UI', sans-serif; text-anchor: middle; dominant-baseline: central; }
 .ck-analog .hh { stroke: #fff; stroke-width: 5; stroke-linecap: round; }
-.ck-analog .mh { stroke: #fff; stroke-width: 3.4; stroke-linecap: round; }
+.ck-analog .mh { stroke: #fff; stroke-width: 3.3; stroke-linecap: round; }
 .ck-analog .sh { stroke: var(--accent); stroke-width: 1.7; stroke-linecap: round; }
 .ck-analog .cd { fill: var(--accent); }
+.ck-analog .ck-center { fill: #fff; }
 
 /* ---------- Latar tema per tampilan (Timer, Focus, Alarm) ---------- */
 .theme-bg { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .5s ease; }

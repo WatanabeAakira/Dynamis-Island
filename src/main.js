@@ -19,6 +19,7 @@ const DEFAULT_SETTINGS = {
   ai: { model: 'llama-3.1-8b-instant', historyLimit: 20, ctxMedia: true, ctxWeather: true, ctxSchedule: true }, // asisten AI (kunci API disimpan terpisah)
   notif: { noticeMs: 7000, historyLimit: 50, showBody: true }, // pengaturan Notifikasi
   accent: '#8b9bff',
+  clock: { timeFormat: '24h', dateFormat: 'long', showSeconds: true, showAdditionalInfo: true, analogSecondHand: true },
   accentFromCover: false,
   trackToast: true,     // info lagu saat berganti (mode collapse)
   lyricsOffset: 0,      // penyesuaian waktu lirik (ms), positif = lebih awal
