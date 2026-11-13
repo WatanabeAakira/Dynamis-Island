@@ -2,7 +2,7 @@
   "name": "dynamis-island",
   "productName": "Dynamis Island",
   "appId": "com.dynamis.island",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "A Windows dynamic island for media controls, timers, weather, notifications, and productivity tools.",
   "main": "src/main.js",
   "scripts": {
