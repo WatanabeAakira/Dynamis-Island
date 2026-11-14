@@ -1,7 +1,7 @@
 :root {
   --accent: #8b9bff;
-  --ease: cubic-bezier(.32, .72, 0, 1);
-  --dur: .5s;
+  --ease: cubic-bezier(.2, .8, .2, 1);
+  --dur: .42s;
   --muted: rgba(255, 255, 255, .55);
   --line: rgba(255, 255, 255, .08);
 }
@@ -28,11 +28,13 @@ html, body {
   position: absolute;
   top: 0;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate3d(-50%, 0, 0);
   width: var(--w);
   height: var(--h);
   background: #000;
   border-radius: 0 0 var(--r) var(--r);
+  backface-visibility: hidden;
+  will-change: width, height, border-radius;
   transition:
     width var(--dur) var(--ease),
     height var(--dur) var(--ease),
@@ -128,11 +130,12 @@ html, body {
 }
 #island[data-mode="expanded"] .content {
   opacity: 1;
-  pointer-events: auto;
+  pointer-events: none;
   transition: opacity .35s ease .22s;
 }
+#island[data-mode="expanded"][data-content-ready="true"] .content { pointer-events: auto; }
 .view { height: 100%; animation: viewIn .35s var(--ease); }
-@keyframes viewIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes viewIn { from { opacity: 0; } to { opacity: 1; } }
 
 /* Placeholder tab */
 .placeholder {
@@ -633,7 +636,7 @@ input[type="range"] { width: 130px; accent-color: var(--accent); }
 
 /* ---------- Bentuk island: sudut atas cekung menyambung ke tepi layar ---------- */
 /* .clip memotong isi mengikuti bentuk; "telinga" (.ear) berada di luar potongan */
-.clip { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; }
+.clip { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; transform: translateZ(0); }
 #island { --E: 12px; }
 #island.toast { --E: 14px; }
 #island[data-mode="hover"] { --E: 16px; }

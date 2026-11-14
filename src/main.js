@@ -12,7 +12,7 @@ const trayIcon = require('./tray-icon');
 
 // Ukuran window tetap = ukuran mode terbesar. Animasi dikerjakan di CSS.
 const WIN_W = 700;
-const WIN_H = 340;
+const WIN_H = 400;
 
 const DEFAULT_SETTINGS = {
   language: 'id',
@@ -102,10 +102,6 @@ function createWindow() {
 
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   win.once('ready-to-show', () => win.showInactive());
-  // Fokus keyboard hanya dipinjam saat mengetik. Ditunda sedikit supaya blur sesaat saat window diaktifkan tidak membatalkannya.
-  win.on('blur', () => {
-    setTimeout(() => { if (win && !win.isDestroyed() && !win.isFocused()) { try { win.setFocusable(false); } catch {} } }, 300);
-  });
 }
 
 // Jangan anggap window "tertutup" saat tertutup game fullscreen (supaya timer, alarm, dan hover tetap hidup)

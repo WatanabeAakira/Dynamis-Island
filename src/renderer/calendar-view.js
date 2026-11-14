@@ -4,6 +4,7 @@ import { events, onEvents, ymd, eventsOn, addEvent, updateEvent, removeEvent, da
 import { DAYS } from './alarmkeeper.js';
 import { hold } from './alarm-view.js';
 import { BACK_BTN } from './timer-view.js';
+import { focusWhenReady } from './input-focus.js';
 
 const island = document.getElementById('island');
 const pad = (n) => String(n).padStart(2, '0');
@@ -324,7 +325,6 @@ function drawEdit(c) {
     });
   }
   if (isNew) {
-    window.api.focusWindow();
-    setTimeout(() => { if (root.isConnected) q('#ce-title').focus(); }, 80);
+    focusWhenReady(q('#ce-title'));
   }
 }

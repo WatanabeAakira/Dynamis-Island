@@ -1,5 +1,6 @@
 // Tab File Tray: grid atau daftar referensi file/folder, pencarian, urutan, menu klik kanan, dan seret keluar.
 import { fileIcon, compactIcon } from './tray-icons.js';
+import { focusWhenReady } from './input-focus.js';
 
 const island = document.getElementById('island');
 const svg = (b) => `<svg viewBox="0 0 24 24" aria-hidden="true">${b}</svg>`;
@@ -204,8 +205,7 @@ export function renderFiles(c) {
 
   q('#ft-search').addEventListener('click', () => {
     searching = true; paint();
-    window.api.focusWindow();
-    setTimeout(() => q('#ft-q').focus(), 60);
+    focusWhenReady(q('#ft-q'));
   });
   const closeSearch = () => { searching = false; query = ''; q('#ft-q').value = ''; sig = ''; paint(); };
   q('#ft-sx').addEventListener('click', closeSearch);

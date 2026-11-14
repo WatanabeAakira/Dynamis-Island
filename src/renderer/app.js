@@ -31,6 +31,7 @@ let settings = await window.api.getSettings();
 let mode = 'collapsed';          // collapsed | hover | expanded
 let activeTab = null;
 let leaveTimer = null;
+let contentReadyTimer = null;
 let pointerInside = false;
 let pinnedOpen = false;
 
@@ -50,6 +51,27 @@ function applySettings(s) {
   setNotifLimit((s.notif && s.notif.historyLimit) || 50);
 }
 
+function scheduleContentReady() {
+  clearTimeout(contentReadyTimer);
+  island.removeAttribute('data-content-ready');
+  if (mode !== 'expanded') return;
+
+  contentReadyTimer = setTimeout(() => {
+    contentReadyTimer = null;
+    if (mode !== 'expanded') return;
+    island.dataset.contentReadyTab = island.dataset.tab || '';
+    island.dataset.contentReadySub = island.dataset.sub || '';
+    island.dataset.contentReady = 'true';
+    document.dispatchEvent(new Event('island:contentready'));
+  }, 600);
+}
+
+// Tab dan subview bisa mengubah tinggi Island saat panel sudah terbuka.
+new MutationObserver(scheduleContentReady).observe(island, {
+  attributes: true,
+  attributeFilter: ['data-tab', 'data-sub']
+});
+
 // ---------- Mode ----------
 // Event 'island:modechange' dipakai fitur lain (mis. mini lyrics saat pointerleave -> collapsed).
 function setMode(next, reason) {
@@ -57,6 +79,8 @@ function setMode(next, reason) {
   const prev = mode;
   mode = next;
   island.dataset.mode = next;
+  // Tunggu sampai resize Island dan fade-in panel selesai sebelum kontrol menerima klik.
+  scheduleContentReady();
   document.dispatchEvent(new CustomEvent('island:modechange', { detail: { mode: next, prev, reason, tab: activeTab } }));
 }
 
@@ -304,16 +328,10 @@ window.api.onIslandShown(() => {
   setOver(false);
 });
 
-// ---------- Fokus keyboard hanya dipinjam saat mengetik di kolom teks/angka ----------
-// Window island tidak mengambil fokus saat diklik, supaya game/aplikasi aktif tidak terganggu.
+// Izinkan window menerima fokus sebelum kolom diklik. Klik itu sendiri membiarkan Chromium
+// mengatur fokus kolom secara native, tanpa memanggil window.focus() lagi setelahnya.
 const isTextField = (el) => !!el && el.matches && el.matches('input[type="number"], input[type="text"], input:not([type]), textarea');
-// Window dibuat bisa aktif SEBELUM kolom diklik (saat kursor lewat), karena klik pada window yang tidak bisa aktif tidak memberi fokus keyboard
 document.addEventListener('pointerover', (e) => { if (isTextField(e.target)) window.api.allowFocus(); });
-document.addEventListener('focusin', (e) => {
-  if (!isTextField(e.target)) return;
-  window.api.focusWindow();
-  setTimeout(() => { if (isTextField(document.activeElement) && !document.hasFocus()) window.api.focusWindow(); }, 180);
-});
 document.addEventListener('focusout', () => {
   setTimeout(() => { if (!isTextField(document.activeElement)) window.api.releaseFocus(); }, 80);
 });

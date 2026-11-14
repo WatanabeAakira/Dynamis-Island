@@ -3,6 +3,7 @@ import { icon, label } from './weather-icons.js';
 import { toMs, hhmm, pickHours, sunProgress, arcPath, arcPoint, fmtTemp, compass, uvLevel, dayName, distKm } from './weather-core.js';
 import { BACK_BTN } from './timer-view.js';
 import { getLanguage } from './locale.js';
+import { focusWhenReady } from './input-focus.js';
 
 const island = document.getElementById('island');
 const svg = (b) => `<svg viewBox="0 0 24 24" aria-hidden="true">${b}</svg>`;
@@ -279,6 +280,5 @@ function drawSearch(c) {
   });
   q('#sub-back').addEventListener('click', back);
   input.addEventListener('keydown', (e) => { if (e.key === 'Escape') back(); });
-  window.api.focusWindow();
-  setTimeout(() => { if (input.isConnected) input.focus(); }, 80);
+  focusWhenReady(input);
 }

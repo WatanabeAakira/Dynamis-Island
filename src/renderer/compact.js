@@ -39,17 +39,36 @@ function renderApps() {
 }
 
 // Pill audio: ikon speaker, persen, bar volume, dan batang aktivitas (sama dengan tab)
+let compactAudio = null;
 function renderAudio() {
   const m = audio.master;
   const muted = m.mute || m.vol <= 0.001;
   const pct = muted ? 0 : Math.round(m.vol * 100);
   const lvl = Math.sqrt(Math.max(0, m.peak || 0));
   const K = [0.55, 0.9, 1, 0.7];
-  const eq = K.map((k) => `<i style="transform:scaleY(${muted ? 0.25 : Math.max(0.18, Math.min(1, lvl * k + (lvl > 0.02 ? 0.12 : 0))).toFixed(3)})"></i>`).join('');
-  cmp.innerHTML = `<span class="ca-ico${muted ? ' mute' : ''}">${speaker(m.vol, m.mute)}</span>`
-    + `<span class="ca-pct">${pct}%</span>`
-    + `<span class="ca-bar"><i style="--v:${muted ? 0 : m.vol.toFixed(3)}"></i></span>`
-    + `<span class="ca-eq${muted ? ' off' : ''}">${eq}</span>`;
+  if (!compactAudio || !compactAudio.icon.isConnected) {
+    cmp.innerHTML = '<span class="ca-ico"></span>'
+      + '<span class="ca-pct"></span>'
+      + '<span class="ca-bar"><i></i></span>'
+      + '<span class="ca-eq"><i></i><i></i><i></i><i></i></span>';
+    compactAudio = {
+      icon: cmp.querySelector('.ca-ico'),
+      pct: cmp.querySelector('.ca-pct'),
+      bar: cmp.querySelector('.ca-bar i'),
+      eq: cmp.querySelectorAll('.ca-eq i')
+    };
+  }
+
+  compactAudio.icon.classList.toggle('mute', muted);
+  const icon = speaker(m.vol, m.mute);
+  if (compactAudio.icon.innerHTML !== icon) compactAudio.icon.innerHTML = icon;
+  compactAudio.pct.textContent = `${pct}%`;
+  compactAudio.bar.style.setProperty('--v', muted ? 0 : m.vol.toFixed(3));
+  compactAudio.eq[0].parentElement.classList.toggle('off', muted);
+  compactAudio.eq.forEach((bar, i) => {
+    const value = muted ? 0.25 : Math.max(0.18, Math.min(1, lvl * K[i] + (lvl > 0.02 ? 0.12 : 0)));
+    bar.style.transform = `scaleY(${value.toFixed(3)})`;
+  });
 }
 
 function renderNotif(unread) {

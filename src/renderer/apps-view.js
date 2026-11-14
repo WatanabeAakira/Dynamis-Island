@@ -1,6 +1,7 @@
 // Tab Pintasan Aplikasi: grid atau daftar aplikasi, cari, urut (seret), menu klik kanan, dan pemilih aplikasi terpasang.
 import { BACK_BTN } from './timer-view.js';
 import { pickColors } from './color.js';
+import { focusWhenReady } from './input-focus.js';
 
 const island = document.getElementById('island');
 const svg = (b) => `<svg viewBox="0 0 24 24" aria-hidden="true">${b}</svg>`;
@@ -385,6 +386,5 @@ function drawPicker(c) {
   });
   paintSel();
   load('');
-  window.api.focusWindow();
-  setTimeout(() => { if (root.isConnected) q('#pk-q').focus(); }, 80);
+  focusWhenReady(q('#pk-q'));
 }
