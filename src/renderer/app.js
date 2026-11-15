@@ -28,8 +28,9 @@ const content = document.getElementById('content');
 const pillTime = document.getElementById('pill-time');
 
 let settings = await window.api.getSettings();
-let mode = 'collapsed';          // collapsed | hover | expanded
+let mode = 'collapsed';          // full-closed | collapsed | hover | expanded
 let activeTab = null;
+let fullscreenActive = false;
 let leaveTimer = null;
 let contentReadyTimer = null;
 let pointerInside = false;
@@ -88,8 +89,26 @@ function scheduleCollapse(reason = 'pointerleave') {
   clearTimeout(leaveTimer);
   if (pinnedOpen || pointerInside) return;
   leaveTimer = setTimeout(() => {
-    if (!pinnedOpen && !pointerInside) setMode('collapsed', reason);
+    if (!pinnedOpen && !pointerInside) setMode(restingMode(), reason);
   }, settings.collapseDelay);
+}
+
+function restingMode() {
+  return settings.autoFullClosed !== false && fullscreenActive ? 'full-closed' : 'collapsed';
+}
+
+function syncFullscreenMode(reason = 'fullscreen-change') {
+  const target = restingMode();
+  if (target === 'full-closed') {
+    clearTimeout(leaveTimer);
+    pointerInside = false;
+    // Masuk fullscreen selalu menutup island dan melepas pin yang aktif sebelumnya.
+    pinnedOpen = false;
+    updatePinButton();
+    if (mode !== target) setMode(target, reason);
+  } else if (mode === 'full-closed') {
+    setMode('collapsed', reason);
+  }
 }
 
 function updatePinButton() {
@@ -170,7 +189,7 @@ tabbar.addEventListener('click', (e) => {
 island.addEventListener('pointerenter', () => {
   pointerInside = true;
   clearTimeout(leaveTimer);
-  if (mode === 'collapsed' && settings.openOnHover && !island.classList.contains('cmp-apps')) setMode(activeTab ? 'expanded' : 'hover', 'pointerenter');
+  if ((mode === 'collapsed' || mode === 'full-closed') && settings.openOnHover && !island.classList.contains('cmp-apps')) setMode(activeTab ? 'expanded' : 'hover', 'pointerenter');
 });
 
 island.addEventListener('pointerleave', () => {
@@ -179,7 +198,7 @@ island.addEventListener('pointerleave', () => {
 });
 
 island.addEventListener('click', () => {
-  if (mode === 'collapsed') setMode(activeTab ? 'expanded' : 'hover', 'click');
+  if (mode === 'collapsed' || mode === 'full-closed') setMode(activeTab ? 'expanded' : 'hover', 'click');
 });
 
 // ---------- Click-through: area transparan tembus ke aplikasi di bawah ----------
@@ -302,7 +321,7 @@ async function addDropped(files) {
 const hoverEnter = () => {
   pointerInside = true;
   clearTimeout(leaveTimer);
-  if (mode === 'collapsed' && settings.openOnHover && !island.classList.contains('cmp-apps')) setMode(activeTab ? 'expanded' : 'hover', 'pointerenter');
+  if ((mode === 'collapsed' || mode === 'full-closed') && settings.openOnHover && !island.classList.contains('cmp-apps')) setMode(activeTab ? 'expanded' : 'hover', 'pointerenter');
 };
 const hoverLeave = () => {
   pointerInside = false;
@@ -311,6 +330,14 @@ const hoverLeave = () => {
 window.api.onHover((inside) => {
   if (overIsland) return; // event mouse di window sudah menangani
   if (inside) hoverEnter(); else hoverLeave();
+});
+
+window.api.onHelper((msg) => {
+  if (!msg || msg.type !== 'fullscreen') return;
+  const active = !!msg.active;
+  if (active === fullscreenActive) return;
+  fullscreenActive = active;
+  syncFullscreenMode(active ? 'fullscreen-enter' : 'fullscreen-exit');
 });
 
 // Tray dapat menyembunyikan window saat hover/click-through sedang aktif.
@@ -324,7 +351,7 @@ window.api.onIslandShown(() => {
   overIsland = false;
   activeTab = null;
   markActive();
-  setMode('collapsed', 'tray-show');
+  setMode(restingMode(), 'tray-show');
   setOver(false);
 });
 
@@ -339,7 +366,9 @@ document.addEventListener('focusout', () => {
 // ---------- Perubahan dari window Pengaturan ----------
 window.api.onSettings((s) => {
   const languageChanged = settings.language !== s.language;
+  const autoFullClosedChanged = (settings.autoFullClosed !== false) !== (s.autoFullClosed !== false);
   applySettings(s);
+  if (autoFullClosedChanged) syncFullscreenMode('fullscreen-setting');
   if (languageChanged || activeTab === 'clock') {
     buildTabbar();
     if (activeTab) renderActive();

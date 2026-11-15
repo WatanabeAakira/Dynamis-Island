@@ -43,6 +43,8 @@ html, body {
 #island[data-mode="hover"]     { --w: 590px; --h: 62px;  --r: 31px; }
 #island[data-mode="expanded"]  { --w: 650px; --h: 286px; --r: 34px; }
 #island[data-mode="expanded"][data-tab="clock"] { --h: 306px; }
+#island[data-mode="full-closed"] { --w: 188px; --h: 5px; --r: 3px; --E: 3px; background: rgba(0, 0, 0, .62); }
+#island[data-mode="full-closed"] .clip > * { visibility: hidden !important; }
 
 /* ---------- Mode collapse ---------- */
 .pill {

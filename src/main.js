@@ -29,6 +29,7 @@ const DEFAULT_SETTINGS = {
   lyricsMode: false,    // tampilan lirik tetap aktif setelah aplikasi dibuka ulang
   collapseDelay: 350,   // ms sebelum island menutup setelah pointer keluar
   openOnHover: true,    // false = harus klik dulu untuk membuka
+  autoFullClosed: true, // sembunyikan island saat aplikasi foreground memenuhi layar
   autoStart: false,
   lyricsDir: ''         // folder file .lrc / .elrc lokal
 };

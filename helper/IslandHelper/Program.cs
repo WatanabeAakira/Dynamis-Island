@@ -19,20 +19,59 @@ static class Program
     static bool artSent;
     static int artTries;
     static bool wasActive = true;
+    static bool? lastFullscreen;
+    static bool? candidateFullscreen;
+    static int fullscreenCandidateCount;
 
     static string SessionId(GlobalSystemMediaTransportControlsSession s) => s.SourceAppUserModelId ?? "";
 
     static async Task Main()
     {
         Console.OutputEncoding = new System.Text.UTF8Encoding(false);
-        mgr = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
-        mgr.CurrentSessionChanged += (_, _) => { Attach(); Fire(); };
-        Attach();
-        _ = Task.Run(ReadCommands);
+        _ = Task.Run(PublishFullscreen);
+        try
+        {
+            mgr = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+            mgr.CurrentSessionChanged += (_, _) => { Attach(); Fire(); };
+            Attach();
+            _ = Task.Run(ReadCommands);
+            while (true)
+            {
+                await Publish();
+                await Task.Delay(1000);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Deteksi fullscreen tetap jalan walau API media Windows tidak tersedia.
+            Send(new { type = "error", message = ex.Message });
+            await Task.Delay(Timeout.Infinite);
+        }
+    }
+
+    static async Task PublishFullscreen()
+    {
         while (true)
         {
-            await Publish();
-            await Task.Delay(1000);
+            var fullscreen = FullscreenDetector.IsForegroundFullscreen();
+            if (candidateFullscreen != fullscreen)
+            {
+                candidateFullscreen = fullscreen;
+                fullscreenCandidateCount = 1;
+            }
+            else
+            {
+                fullscreenCandidateCount++;
+            }
+
+            // Minta dua hasil sama berturut-turut supaya perubahan fokus/bounds sesaat
+            // nggak bikin island kedip antara Compact dan Full Closed.
+            if (fullscreenCandidateCount >= 2 && lastFullscreen != fullscreen)
+            {
+                lastFullscreen = fullscreen;
+                Send(new { type = "fullscreen", active = fullscreen });
+            }
+            await Task.Delay(400);
         }
     }
 

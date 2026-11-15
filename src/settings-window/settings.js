@@ -137,6 +137,7 @@ function pageBehavior(root) {
   range.addEventListener('input', () => { out.textContent = `${range.value} ms`; });
   range.addEventListener('change', () => save({ collapseDelay: Number(range.value) }));
   root.append(card(
+    row('Auto Full Closed saat aplikasi fullscreen', 'Island jadi strip tipis saat aplikasi foreground memenuhi layar, lalu kembali compact setelah fullscreen berakhir.', toggle(S.autoFullClosed !== false, (v) => save({ autoFullClosed: v }))),
     row('Buka island saat kursor di atasnya', 'Jika dimatikan, island dibuka dengan klik.', toggle(S.openOnHover, (v) => save({ openOnHover: v }))),
     row('Jeda sebelum menutup', 'Waktu tunggu setelah kursor meninggalkan island sebelum island menutup.', h('div', { class: 'rg' }, range, out)),
     row('Info lagu di mode collapse', 'Saat lagu berganti, island yang tertutup menampilkan cover dan judul sebentar.', toggle(S.trackToast !== false, (v) => save({ trackToast: v })))

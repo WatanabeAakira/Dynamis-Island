@@ -18,6 +18,8 @@ const EN = {
   'Ikuti warna cover lagu': 'Match the album art color',
   'Buka island saat kursor di atasnya': 'Open the island on hover',
   'Buka saat kursor di atas island': 'Open the island on hover',
+  'Auto Full Closed saat aplikasi fullscreen': 'Auto Full Closed while an app is fullscreen',
+  'Island jadi strip tipis saat aplikasi foreground memenuhi layar, lalu kembali compact setelah fullscreen berakhir.': 'The island becomes a thin strip while the foreground app fills the screen, then returns to compact when fullscreen ends.',
   'Jeda sebelum menutup': 'Delay before closing', 'Info lagu di mode collapse': 'Track info while collapsed',
   'Folder data': 'Data folder', 'Buka folder': 'Open folder', Keluar: 'Quit',
   'Kecil': 'Small', Sedang: 'Medium', Besar: 'Large', Terbaru: 'Recent', Nama: 'Name', Jenis: 'Type',
