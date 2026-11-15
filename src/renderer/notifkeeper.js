@@ -7,6 +7,7 @@ export const SOURCES = {
   focus: { label: 'Fokus', color: '#f59e0b', body: 'Sesi fokus selesai' },
   alarm: { label: 'Alarm', color: '#a78bfa', body: 'Alarm berbunyi' },
   calendar: { label: 'Kalender', color: '#22d3ee', body: 'Pengingat event' },
+  windows: { label: 'Windows', color: '#38bdf8', body: 'Notifikasi aplikasi Windows' },
   system: { label: 'Sistem', color: '#94a3b8', body: '' }
 };
 
@@ -15,7 +16,7 @@ let limit = 50;
 let arrivedAt = 0;
 const subs = new Set();
 export const onNotifs = (f) => { subs.add(f); return () => subs.delete(f); };
-const emit = () => subs.forEach((f) => f());
+const emit = () => { subs.forEach((f) => f()); window.api?.reportNotifCount?.(notifs.length); };
 const persist = () => save('notifs', notifs);
 const prune = () => { if (notifs.length > limit) notifs.splice(limit); };
 export const lastArrival = () => arrivedAt;
@@ -26,13 +27,13 @@ export function setNotifLimit(n) {
   prune(); persist(); emit();
 }
 
-export function addNotif({ source = 'system', title = '', body = '', tab = null, sub = null, color } = {}) {
+export function addNotif({ source = 'system', title = '', body = '', tab = null, sub = null, color, app = null } = {}) {
   const src = SOURCES[source] ? source : 'system';
   const n = {
     id: Math.random().toString(36).slice(2, 9), source: src,
     title: String(title || SOURCES[src].label).slice(0, 120),
     body: String(body || SOURCES[src].body || '').slice(0, 240),
-    ts: Date.now(), read: false, tab, sub, color: color || SOURCES[src].color
+    ts: Date.now(), read: false, tab, sub, app: app ? String(app).slice(0, 80) : null, color: color || SOURCES[src].color
   };
   notifs.unshift(n);
   prune(); persist();
@@ -62,4 +63,9 @@ document.addEventListener('island:alert', (e) => {
   if (!d.title) return;
   const source = d.sub === 'focus' ? 'focus' : d.sub === 'alarm' ? 'alarm' : 'timer';
   addNotif({ source, title: d.title, tab: d.tab || null, sub: d.sub || null });
+});
+
+window.api?.onHelper?.((m) => {
+  if (m?.type !== 'windows-notification' || !m.title) return;
+  addNotif({ source: 'windows', app: m.app || 'Windows', title: m.title, body: m.body || '' });
 });

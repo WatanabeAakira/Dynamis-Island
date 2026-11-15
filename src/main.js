@@ -17,7 +17,7 @@ const WIN_H = 400;
 const DEFAULT_SETTINGS = {
   language: 'id',
   ai: { model: 'llama-3.1-8b-instant', historyLimit: 20, ctxMedia: true, ctxWeather: true, ctxSchedule: true }, // asisten AI (kunci API disimpan terpisah)
-  notif: { noticeMs: 7000, historyLimit: 50, showBody: true }, // pengaturan Notifikasi
+  notif: { noticeMs: 7000, historyLimit: 50, showBody: true, captureWindows: true }, // pengaturan Notifikasi
   accent: '#8b9bff',
   clock: { timeFormat: '24h', dateFormat: 'long', showSeconds: true, showAdditionalInfo: true, analogSecondHand: true },
   accentFromCover: false,
@@ -38,6 +38,8 @@ let win = null;
 let settings = { ...DEFAULT_SETTINGS };
 let audioSessionApps = new Map();
 let audioOutputDeviceIds = new Set();
+let windowsNotificationsStatus = { enabled: false, available: false };
+let notificationCount = 0;
 
 const settingsPath = () => path.join(app.getPath('userData'), 'settings.json');
 
@@ -171,8 +173,13 @@ if (!gotLock) {
         audioOutputDeviceIds = new Set((Array.isArray(msg.outputDevices) ? msg.outputDevices : [])
           .map((d) => d && d.id).filter((id) => typeof id === 'string'));
       }
+      if (msg && msg.type === 'windows-notifications-status') {
+        windowsNotificationsStatus = msg;
+        broadcast('windows-notifications:status', msg);
+      }
       if (win && !win.isDestroyed()) win.webContents.send('helper:msg', msg);
     });
+    helper.send({ cmd: 'windows-notifications', enabled: settings.notif?.captureWindows !== false });
     screen.on('display-metrics-changed', placeWindow);
     screen.on('display-added', placeWindow);
     screen.on('display-removed', placeWindow);
@@ -294,7 +301,17 @@ ipcMain.handle('settings:set', (_e, patch) => {
   saveSettings();
   applyAutoStart();
   broadcast('settings:changed', settings); // island dan window pengaturan ikut diperbarui
+  if (patch.notif && Object.prototype.hasOwnProperty.call(patch.notif, 'captureWindows')) {
+    helper.send({ cmd: 'windows-notifications', enabled: settings.notif.captureWindows !== false });
+  }
   return settings;
+});
+
+ipcMain.handle('windows-notifications:status', () => windowsNotificationsStatus);
+ipcMain.handle('notif:count', () => notificationCount);
+ipcMain.on('notif:count-update', (_e, count) => {
+  notificationCount = Math.max(0, Math.min(200, Number(count) || 0));
+  broadcast('notif:count-changed', notificationCount);
 });
 
 ipcMain.on('settings:open', (_e, page) => openSettings(page));

@@ -2,9 +2,9 @@
 
 > A Windows dynamic island for media controls, timers, weather, notifications, and productivity tools.
 
-## Latest release — v0.1.3
+## Latest release — v0.1.7
 
-Updated the Clock tab with a redesigned digital and analog display, locale-aware date formats, optional seconds, and additional time information. Indonesian remains the default language.
+Menangkap teks toast aplikasi Windows yang diekspos UI Automation dan memasukkannya ke riwayat tab Notifikasi. Pengaturan terpisah sekarang tersambung ke status helper dan jumlah riwayat. Banner toast bawaan Windows tetap dapat muncul.
 
 Project ini bisa bikin installer Windows dan update otomatis dari GitHub Releases. Setup repo dan cara nerbitin versi baru ada di [PANDUAN-GITHUB-RELEASES.md](PANDUAN-GITHUB-RELEASES.md).
 
@@ -50,12 +50,12 @@ Pengaturan tersimpan di `%APPDATA%/windows-island/settings.json`.
 - Sumber: file lokal (folder diatur di pengaturan; nama `Artis - Judul.lrc` atau `.elrc`) lalu LRCLIB
 - Mini lyrics: buka tab Media, tekan ikon lirik, lalu keluarkan kursor dari island
 
-## Helper C# + Media Player
+## Helper C# + Media Player + Notifikasi Windows
 ```
 npm run build:helper    # membangun helper self-contained untuk Windows x64
 npm start
 ```
-Helper tampil di `helper-bin/IslandHelper.exe`. Protokol: JSON per baris lewat stdout/stdin.
+Helper tampil di `helper-bin/IslandHelper.exe`. Protokol: JSON per baris lewat stdout/stdin. Helper C# memantau permukaan toast Windows yang tersedia lewat UI Automation; tangkapan bergantung pada teks yang diekspos Windows dan aplikasi sumber. Pengaturan penangkapan ada di halaman Notifikasi.
 
 ## Audio Control dan pin island
 - Perangkat output dapat diganti dari Audio Control. Pergantian memakai antarmuka Windows `IPolicyConfig` yang tidak terdokumentasi resmi, sehingga perilakunya dapat berubah antarversi Windows.

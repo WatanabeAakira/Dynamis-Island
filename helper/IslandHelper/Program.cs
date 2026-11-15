@@ -22,12 +22,20 @@ static class Program
     static bool? lastFullscreen;
     static bool? candidateFullscreen;
     static int fullscreenCandidateCount;
+    static WindowsNotificationCapture? notificationCapture;
 
     static string SessionId(GlobalSystemMediaTransportControlsSession s) => s.SourceAppUserModelId ?? "";
 
-    static async Task Main()
+    static async Task Main(string[] args)
     {
         Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+        try { notificationCapture = new WindowsNotificationCapture(); }
+        catch (Exception ex) { Send(new { type = "windows-notifications-status", enabled = false, available = false, error = ex.Message }); }
+        if (args.Contains("--notification-capture-test", StringComparer.OrdinalIgnoreCase))
+        {
+            await ReadCommands();
+            return;
+        }
         _ = Task.Run(PublishFullscreen);
         try
         {
@@ -268,6 +276,12 @@ static class Program
     {
         using var doc = JsonDocument.Parse(line);
         var cmd = doc.RootElement.GetProperty("cmd").GetString();
+        if (cmd == "windows-notifications")
+        {
+            notificationCapture?.SetEnabled(doc.RootElement.TryGetProperty("enabled", out var enabled) && enabled.GetBoolean());
+            if (notificationCapture == null) Send(new { type = "windows-notifications-status", enabled = false, available = false });
+            return;
+        }
         if (cmd == "location") { _ = Locate(); return; } // tidak butuh sesi media
         if (cmd != null && cmd.StartsWith("audio-")) { AudioControl.Handle(cmd, doc.RootElement); return; }
         if (cmd == "media-select-session")

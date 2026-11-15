@@ -65,7 +65,7 @@ export function renderNotif(c) {
     return notifs.filter((n) => {
       if (filter === 'unread' && n.read) return false;
       if (filter !== 'all' && filter !== 'unread' && n.source !== filter) return false;
-      if (k && !(n.title.toLowerCase().includes(k) || n.body.toLowerCase().includes(k))) return false;
+      if (k && !(n.title.toLowerCase().includes(k) || n.body.toLowerCase().includes(k) || String(n.app || '').toLowerCase().includes(k))) return false;
       return true;
     });
   }
@@ -89,7 +89,7 @@ export function renderNotif(c) {
       return `<div class="nc${n.read ? '' : ' unread'}" role="button" tabindex="0" data-id="${n.id}" style="--c:${n.color || src.color}">
         <span class="nc-ico">${svg(SRC_ICON[n.source] || I.bell)}</span>
         <div class="nc-main">
-          <div class="nc-h"><span class="nc-app">${esc(src.label)}</span><span class="nc-t">${fmtTime(n.ts)}</span>${n.read ? '' : '<i class="nc-dot"></i>'}</div>
+          <div class="nc-h"><span class="nc-app">${esc(n.app || src.label)}</span><span class="nc-t">${fmtTime(n.ts)}</span>${n.read ? '' : '<i class="nc-dot"></i>'}</div>
           <b>${esc(n.title)}</b>
           ${showBody && n.body ? `<small>${esc(n.body)}</small>` : ''}
         </div>
@@ -101,7 +101,7 @@ export function renderNotif(c) {
     empty.hidden = items.length > 0;
     if (!items.length) {
       empty.textContent = total === 0
-        ? 'Belum ada notifikasi. Pengingat timer, alarm, fokus, dan kalender akan muncul di sini.'
+        ? 'Belum ada notifikasi. Pengingat island dan notifikasi aplikasi Windows akan muncul di sini.'
         : 'Tidak ada notifikasi yang cocok dengan filter atau pencarian.';
     }
   }
