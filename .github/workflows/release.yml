@@ -37,7 +37,12 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           gh release view $tag *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --draft --title $tag --notes "Dynamis Island $tag"
+            $notes = "releases/$tag.md"
+            if (Test-Path $notes) {
+              gh release create $tag --draft --title $tag --notes-file $notes
+            } else {
+              gh release create $tag --draft --title $tag --notes "Dynamis Island $tag"
+            }
           }
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

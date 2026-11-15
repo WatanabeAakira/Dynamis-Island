@@ -316,24 +316,33 @@ function pageNotif(root) {
   const dur = stepper({ value: Math.round(n.noticeMs / 1000), min: 3, max: 15, step: 1, unit: 'detik' }, (v) => saveN({ noticeMs: v * 1000 }));
   const hist = segmented([[25, '25'], [50, '50'], [75, '75'], [100, '100']], n.historyLimit, (v) => saveN({ historyLimit: v }));
   const countDesc = h('small', {}, '');
-  const paintCount = () => {
-    let total = 0;
-    try { total = JSON.parse(localStorage.getItem('notifs') || '[]').length; } catch {}
+  const paintCount = (total) => {
     countDesc.textContent = `${total} notifikasi tersimpan.`;
   };
-  paintCount();
+  api.notifCount().then(paintCount);
+  api.onNotifCount(paintCount);
+  const capture = toggle(n.captureWindows !== false, (v) => saveN({ captureWindows: v }));
+  const captureStatus = h('small', {}, 'Memeriksa status...');
+  const paintCaptureStatus = (s) => {
+    captureStatus.textContent = !s?.available
+      ? 'Helper belum siap. Buat build helper lalu buka ulang island.'
+      : s.enabled ? 'Penangkapan notif aktif.' : 'Penangkapan notif nonaktif.';
+  };
+  api.windowsNotificationsStatus().then(paintCaptureStatus);
+  api.onWindowsNotificationsStatus(paintCaptureStatus);
   let armed = 0;
   const clearBtn = h('button', { class: 'btn danger', type: 'button' }, 'Hapus semua notifikasi');
   clearBtn.addEventListener('click', () => {
     if (!armed) { clearBtn.textContent = 'Yakin hapus semua?'; clearBtn.classList.add('arm'); armed = setTimeout(() => { armed = 0; clearBtn.textContent = 'Hapus semua notifikasi'; clearBtn.classList.remove('arm'); }, 2500); return; }
     clearTimeout(armed); armed = 0;
     api.notifClear();
-    try { localStorage.setItem('notifs', '[]'); } catch {}
     clearBtn.textContent = 'Hapus semua notifikasi'; clearBtn.classList.remove('arm');
-    paintCount();
+    paintCount(0);
   });
   root.append(
     card(
+      row('Notifikasi aplikasi Windows', 'Masukkan toast Windows dari aplikasi seperti Discord dan WhatsApp ke tab Notifikasi. Isi pesan disimpan di perangkat ini. Island harus berjalan untuk menangkapnya. Banner kanan bawah Windows tetap bisa muncul.', capture),
+      row('Status penangkapan', '', captureStatus),
       row('Durasi banner', 'Lama banner pengingat tampil di island yang tertutup, sebelum menghilang sendiri.', dur),
       row('Batas riwayat', 'Jumlah notifikasi terakhir yang disimpan.', hist),
       row('Tampilkan isi pesan', 'Menampilkan keterangan singkat di bawah judul notifikasi.', toggle(n.showBody, (v) => saveN({ showBody: v })))
