@@ -51,3 +51,12 @@ jobs:
         run: npm run release:win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publikasikan GitHub Release
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $release = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$tag" | ConvertFrom-Json
+          gh api --method PATCH "repos/$env:GITHUB_REPOSITORY/releases/$($release.id)" -F draft=false
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
