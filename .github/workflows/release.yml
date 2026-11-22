@@ -74,10 +74,28 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ inputs.tag }}
 
-      - name: Build installer dan upload ke GitHub Releases
-        run: npm run release:win
+      - name: Build installer Windows
+        run: npm run build:win
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload aset GitHub Releases
+        shell: pwsh
+        run: |
+          $tag = if ($env:RELEASE_TAG) { $env:RELEASE_TAG } else { $env:GITHUB_REF_NAME }
+          $version = if ($tag.StartsWith('v')) { $tag.Substring(1) } else { $tag }
+          $assets = @(
+            "dist/Dynamis-Island-Setup-$version.exe",
+            "dist/Dynamis-Island-Setup-$version.exe.blockmap",
+            "dist/latest.yml"
+          )
+          foreach ($asset in $assets) {
+            if (-not (Test-Path -LiteralPath $asset)) { throw "Aset hasil build tidak ditemukan: $asset" }
+          }
+          gh release upload $tag @assets --repo $env:GITHUB_REPOSITORY --clobber
+          if ($LASTEXITCODE -ne 0) { throw "GitHub CLI gagal upload aset untuk tag $tag (exit $LASTEXITCODE)" }
+        env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ inputs.tag }}
 
