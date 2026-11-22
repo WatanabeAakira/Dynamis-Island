@@ -40,6 +40,7 @@ jobs:
       # Bikin satu release dulu supaya beberapa aset yang di-upload barengan
       # electron-builder masuk ke release yang sama, bukan bikin release duplikat.
       - name: Siapkan satu GitHub Release
+        id: prepare_release
         shell: pwsh
         run: |
           $tag = if ($env:RELEASE_TAG) { $env:RELEASE_TAG } else { $env:GITHUB_REF_NAME }
@@ -67,6 +68,7 @@ jobs:
               Invoke-RestMethod -Uri "$api/assets/$($asset.id)" -Method Delete -Headers $headers
             }
           }
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "release_id=$($release.id)" -Encoding utf8
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -89,9 +91,10 @@ jobs:
             "X-GitHub-Api-Version" = "2022-11-28"
           }
           $api = "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases"
-          $release = Invoke-RestMethod -Uri "$api/tags/$tag" -Headers $headers
+          $releaseId = "${{ steps.prepare_release.outputs.release_id }}"
+          if (-not $releaseId) { throw "ID GitHub Release tidak tersedia untuk tag $tag" }
           $payload = @{ draft = $false } | ConvertTo-Json -Compress
-          Invoke-RestMethod -Uri "$api/$($release.id)" -Method Patch -Headers $headers -ContentType "application/json" -Body $payload
+          Invoke-RestMethod -Uri "$api/$releaseId" -Method Patch -Headers $headers -ContentType "application/json" -Body $payload
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
