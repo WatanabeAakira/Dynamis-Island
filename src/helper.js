@@ -10,12 +10,14 @@ let onMsg = () => {};
 let stopped = false;
 let lastError = null;
 const waiters = new Map(); // jenis pesan -> fungsi penerima balasan
+const replayable = new Map();
 
 function exePath() {
   const base = app.isPackaged ? process.resourcesPath : path.join(__dirname, '..');
   return path.join(base, 'helper-bin', 'IslandHelper.exe');
 }
 
+let dataDirectory = '';
 function launch() {
   const exe = exePath();
   if (!fs.existsSync(exe)) {
@@ -24,7 +26,8 @@ function launch() {
     return;
   }
   lastError = null;
-  proc = spawn(exe, [], { windowsHide: true });
+  proc = spawn(exe, dataDirectory ? [dataDirectory] : [], { windowsHide: true });
+  for (const command of replayable.values()) proc.stdin.write(JSON.stringify(command) + '\n');
   readline.createInterface({ input: proc.stdout }).on('line', (line) => {
     try {
       const m = JSON.parse(line);
@@ -40,7 +43,7 @@ function launch() {
 }
 
 module.exports = {
-  start(cb) { onMsg = cb; stopped = false; launch(); },
+  start(cb, directory) { onMsg = cb; if (directory) dataDirectory = directory; stopped = false; launch(); },
   // Kirim perintah lalu tunggu satu balasan dengan jenis tertentu (batas waktu ms)
   request(obj, type, ms) {
     return new Promise((resolve, reject) => {
@@ -53,6 +56,7 @@ module.exports = {
   send(obj) {
     if (!proc || !proc.stdin.writable) return false;
     try {
+      if (obj && (obj.cmd === 'companion-init' || obj.cmd === 'clipboard-config')) replayable.set(obj.cmd, obj);
       proc.stdin.write(JSON.stringify(obj) + '\n');
       return true;
     } catch (error) {

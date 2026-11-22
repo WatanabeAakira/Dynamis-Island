@@ -85,6 +85,7 @@ contextBridge.exposeInMainWorld('api', {
   onSettingsPage: (cb) => ipcRenderer.on('settings:page', (_e, p) => cb(p)),
   onLyricsChanged: (cb) => ipcRenderer.on('lyrics:changed', () => cb()),
   appInfo: () => ipcRenderer.invoke('app:info'),
+  checkUpdates: () => ipcRenderer.invoke('app:check-updates'),
   openDataDir: () => ipcRenderer.send('app:open-data'),
   quit: () => ipcRenderer.send('app:quit')
 });

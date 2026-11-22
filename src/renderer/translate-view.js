@@ -30,12 +30,14 @@ let offTranslate = null;
 let helperHandler = null;
 let settingsHandler = null;
 let systemTarget = 'id';
+let activeTranslateContainer = null;
 
 const icon = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
 const countChars = (text) => Array.from(text).length;
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 
 export function renderTranslate(container, settings) {
+  activeTranslateContainer = container;
   const cfg = settings.translation || {};
   state.sourceLanguage = cfg.autoDetect === false ? (cfg.sourceLanguage || 'en') : 'auto';
   state.targetLanguage = cfg.targetLanguage || systemTarget;
@@ -193,6 +195,15 @@ export function renderTranslate(container, settings) {
     if (changed) scheduleTranslation(false);
   };
   window.addEventListener('island:settings', settingsHandler);
+}
+
+export function setTranslateText(text) {
+  if (!activeTranslateContainer || typeof text !== 'string') return;
+  const input = activeTranslateContainer.querySelector('#translateInput');
+  if (!input) return;
+  input.value = text.slice(0, MAX_TRANSLATION_CHARACTERS);
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  input.focus();
 }
 
 function fillLanguages(select, source) {

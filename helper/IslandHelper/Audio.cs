@@ -70,6 +70,7 @@ static class AudioControl
                 case "audio-mastermute":
                     lock (gate) Dev().AudioEndpointVolume.Mute = e.GetProperty("value").GetBoolean();
                     break;
+                case "audio-micmute": { using var mic=CaptureDev(); lock (gate) mic.AudioEndpointVolume.Mute = e.GetProperty("value").GetBoolean(); break; }
                 case "audio-vol":
                 case "audio-mute":
                     lock (gate)
@@ -117,6 +118,18 @@ static class AudioControl
             deviceAt = DateTime.UtcNow;
         }
         return device!;
+    }
+
+    public static object? MicrophoneState()
+    {
+        try { using var mic=CaptureDev(); lock(gate) return new { available=true, mute=mic.AudioEndpointVolume.Mute, name=mic.FriendlyName }; }
+        catch(Exception ex) { return new { available=false, mute=(bool?)null, name=(string?)null, error=ex.Message }; }
+    }
+
+    static MMDevice CaptureDev()
+    {
+        enumerator ??= new MMDeviceEnumerator();
+        return enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia);
     }
 
     static List<OutputDevice> OutputDevices()

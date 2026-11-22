@@ -29,6 +29,7 @@ let pending = null;        // { id } permintaan yang sedang berjalan
 let hasKey = false;
 let active = null;
 let quickMsg = '';
+export function sendAiText(text) { active?.sendText?.(text); }
 
 const cfg = () => ({
   model: (S.ai && S.ai.model) || DEFAULT_MODEL,
@@ -280,7 +281,7 @@ export function renderAi(c) {
   });
   q('#ai-gear').addEventListener('click', () => window.api.openSettings('ai'));
 
-  const api = { refresh };
+  const api = { refresh, sendText: (text) => { if (!busy && typeof text === 'string') { input.value = text.slice(0, 800); q('#ai-form').requestSubmit(); } } };
   active = api;
   function refresh() {
     if (!root.isConnected) return;
