@@ -410,7 +410,7 @@ function pageAi(root) {
 }
 
 function pageTranslation(root) {
-  const current = { sourceLanguage: 'auto', targetLanguage: '', autoDetect: true, autoTranslate: true, provider: 'groq', ...(S.translation || {}) };
+  const current = { sourceLanguage: 'auto', targetLanguage: '', autoDetect: true, autoTranslate: true, provider: 'auto', ...(S.translation || {}) };
   const source = h('select', { class: 'sel' });
   source.append(h('option', { value: 'auto' }, 'Auto-detect'));
   source.value = current.autoDetect ? 'auto' : current.sourceLanguage;
@@ -443,8 +443,11 @@ function pageTranslation(root) {
   target.addEventListener('change', () => void saveTranslation({ targetLanguage: target.value }));
 
   const autoTranslate = toggle(current.autoTranslate, (value) => void saveTranslation({ autoTranslate: value }));
-  const provider = h('select', { class: 'sel' }, h('option', { value: 'groq' }, 'Groq · GPT-OSS 120B'));
-  provider.value = 'groq';
+  const provider = h('select', { class: 'sel' },
+    h('option', { value: 'auto' }, 'Automatic · Groq first, MyMemory if no key'),
+    h('option', { value: 'groq' }, 'Prefer Groq'),
+    h('option', { value: 'mymemory' }, 'MyMemory · no key required'));
+  provider.value = current.provider;
   provider.addEventListener('change', () => void saveTranslation({ provider: provider.value }));
   const shortcut = h('code', { class: 'keycap' }, 'Ctrl + Alt + Y');
 
@@ -454,10 +457,10 @@ function pageTranslation(root) {
       row('Source language', 'Used when automatic detection is off.', source),
       row('Target language', 'Defaults to the Windows display language. Choose another language to keep it as your preference.', target),
       row('Translate while typing', 'Waits briefly after you stop typing before sending a request.', autoTranslate),
-      row('Translation provider', 'Translation uses Groq over the internet. OCR stays on this device.', provider),
+      row('Translation provider', 'Automatic prioritizes Groq when its API key is saved. Without a key, it uses MyMemory; you can also choose either provider.', provider),
       row('Screen selection shortcut', 'Select text from anywhere on screen and translate it.', shortcut)
     ),
-    h('p', { class: 'note' }, 'Only text you enter, paste, or extract from a selected image or screen area is sent to Groq. Screenshots are processed locally and are not uploaded.')
+    h('p', { class: 'note' }, 'OCR and screenshots stay on this device. Only the text you enter, paste, or extract is sent to the selected translation provider. MyMemory works without setup and has an anonymous daily quota of 5,000 characters; longer input is sent in small segments.')
   );
 }
 

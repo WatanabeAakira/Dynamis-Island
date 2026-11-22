@@ -1,9 +1,10 @@
 const groq = require('./translation-providers/groq.cjs');
+const mymemory = require('./translation-providers/mymemory.cjs');
 const { BY_CODE, normalizeLanguage } = require('./translate-languages.cjs');
 
 const MAX_TRANSLATION_CHARACTERS = 10000;
 const REQUEST_TIMEOUT_MS = 45_000;
-const PROVIDERS = Object.freeze({ groq });
+const PROVIDERS = Object.freeze({ auto: true, groq, mymemory });
 const running = new Map();
 
 function characterCount(text) {
@@ -21,7 +22,7 @@ function validateRequest(request) {
   const targetLanguage = normalizeLanguage(request.targetLanguage);
   if (!sourceLanguage) return { ok: false, error: 'Choose a supported source language or Auto-detect.' };
   if (!targetLanguage || !BY_CODE[targetLanguage]) return { ok: false, error: 'Choose a supported target language.' };
-  const provider = typeof request.provider === 'string' ? request.provider : 'groq';
+  const provider = typeof request.provider === 'string' ? request.provider : 'auto';
   if (!PROVIDERS[provider]) return { ok: false, error: 'The selected translation provider is not available.' };
   return { ok: true, value: { id: request.id, text: request.text, sourceLanguage, targetLanguage, provider, count } };
 }
@@ -43,11 +44,10 @@ async function runTranslation(sender, request, getApiKey) {
     return;
   }
 
-  const { id, text, sourceLanguage, targetLanguage, provider: providerName, count } = checked.value;
+  const { id, text, sourceLanguage, targetLanguage, provider: requestedProvider, count } = checked.value;
   const key = requestKey(sender, id);
   running.get(key)?.controller.abort('replaced');
 
-  const provider = PROVIDERS[providerName];
   if (sourceLanguage === targetLanguage) {
     send(sender, id, {
       kind: 'done', status: 'Translation Completed', text, translation: text,
@@ -56,24 +56,23 @@ async function runTranslation(sender, request, getApiKey) {
     return;
   }
 
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    send(sender, id, { kind: 'error', status: 'Translation Failed', message: 'Groq API key is missing. Add one in Settings → AI.' });
-    return;
-  }
+  let apiKey = null;
+  try { apiKey = getApiKey(); } catch {}
+  const providerName = requestedProvider === 'mymemory' ? 'mymemory' : apiKey ? 'groq' : 'mymemory';
+  const provider = PROVIDERS[providerName];
 
   const controller = new AbortController();
   const state = { controller, sender, timeout: null, timedOut: false };
   state.timeout = setTimeout(() => { state.timedOut = true; controller.abort('timeout'); }, REQUEST_TIMEOUT_MS);
   running.set(key, state);
-  send(sender, id, { kind: 'status', status: 'Translating Text', characterCount: count });
+  send(sender, id, { kind: 'status', status: 'Translating Text', characterCount: count, provider: providerName });
 
   try {
     const result = await provider.translate({
       text,
       sourceLanguage,
       targetLanguage,
-      apiKey,
+      ...(providerName === 'groq' ? { apiKey } : {}),
       signal: controller.signal
     });
     if (controller.signal.aborted) return;
@@ -95,7 +94,7 @@ async function runTranslation(sender, request, getApiKey) {
     let message = error?.message || 'Translation failed.';
     if (state.timedOut || error?.name === 'AbortError') message = 'Translation timed out. Try again or use shorter text.';
     else if (error instanceof TypeError) message = 'Network unavailable. Check your internet connection and retry.';
-    send(sender, id, { kind: 'error', status: state.timedOut ? 'Translation Timed Out' : 'Translation Failed', message });
+    send(sender, id, { kind: 'error', status: state.timedOut ? 'Translation Timed Out' : 'Translation Failed', message, provider: providerName });
   } finally {
     clearTimeout(state.timeout);
     if (running.get(key) === state) running.delete(key);

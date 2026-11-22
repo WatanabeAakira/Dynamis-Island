@@ -35,7 +35,7 @@ const DEFAULT_SETTINGS = {
   autoStart: false,
   lyricsDir: '',        // folder file .lrc / .elrc lokal
   copyText: { enabled: true, language: '' },
-  translation: { sourceLanguage: 'auto', targetLanguage: '', autoDetect: true, autoTranslate: true, provider: 'groq' }
+  translation: { sourceLanguage: 'auto', targetLanguage: '', autoDetect: true, autoTranslate: true, provider: 'auto' }
 };
 
 let win = null;

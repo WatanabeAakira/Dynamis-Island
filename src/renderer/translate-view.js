@@ -20,7 +20,7 @@ const ICONS = {
 let state = {
   original: '', translated: '', sourceLanguage: 'auto', targetLanguage: '',
   detectedLanguage: '', ambiguous: false, status: 'Ready to Translate', error: '',
-  processing: false, provider: 'groq', autoTranslate: true, autoDetect: true
+  processing: false, provider: 'auto', providerUsed: '', autoTranslate: true, autoDetect: true
 };
 let requestSequence = 0;
 let activeRequestId = '';
@@ -41,7 +41,7 @@ export function renderTranslate(container, settings) {
   state.targetLanguage = cfg.targetLanguage || systemTarget;
   state.autoDetect = cfg.autoDetect !== false;
   state.autoTranslate = cfg.autoTranslate !== false;
-  state.provider = cfg.provider || 'groq';
+  state.provider = cfg.provider || 'auto';
 
   container.innerHTML = `
     <div class="view translate-view">
@@ -74,7 +74,7 @@ export function renderTranslate(container, settings) {
         </section>
       </div>
       <div class="translate-error" id="translateError" role="alert" hidden></div>
-      <div class="translate-note">OCR runs locally. Translation sends extracted text to Groq when online.</div>
+      <div class="translate-note">OCR stays local. Text goes to Groq if its key is set; otherwise it uses MyMemory (free daily quota).</div>
     </div>`;
 
   const source = container.querySelector('#translateSource');
@@ -188,7 +188,7 @@ export function renderTranslate(container, settings) {
     state.targetLanguage = nextTarget;
     state.autoDetect = next.autoDetect !== false;
     state.autoTranslate = next.autoTranslate !== false;
-    state.provider = next.provider || 'groq';
+    state.provider = next.provider || 'auto';
     updateView(container);
     if (changed) scheduleTranslation(false);
   };
@@ -237,7 +237,8 @@ function handleTranslationEvent(container, event) {
     state.translated = String(event.translation || '');
     state.detectedLanguage = event.sourceLanguage || '';
     state.ambiguous = !!event.sourceLanguageAmbiguous;
-    state.status = event.alreadyTargetLanguage ? 'Already in target language' : 'Translation Completed';
+    state.providerUsed = event.provider || '';
+    state.status = event.alreadyTargetLanguage ? 'Already in target language' : event.provider === 'mymemory' ? 'Translated with MyMemory' : 'Translated with Groq';
     state.error = state.ambiguous ? 'Source language may be ambiguous. Choose it manually if the result looks wrong.' : '';
     state.processing = false;
     activeRequestId = '';

@@ -5,6 +5,7 @@ const path = require('node:path');
 const { LANGUAGES, normalizeLanguage, resolveSystemLanguage } = require('../src/translate-languages.cjs');
 const translation = require('../src/translate-main.js');
 const groq = require('../src/translation-providers/groq.cjs');
+const mymemory = require('../src/translation-providers/mymemory.cjs');
 
 test('sandboxed preload only requires Electron and fetches language data over IPC', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'preload.js'), 'utf8');
@@ -63,6 +64,46 @@ test('Groq adapter maps provider failures and rejects malformed/empty content', 
   assert.match(groq.statusMessage(401), /API key/i);
 });
 
+test('MyMemory splits long Unicode text at safe UTF-8 boundaries and preserves whitespace', () => {
+  const input = `  ${'Halo, dunia! 😀 日本語. '.repeat(90)}\nAkhir.  `;
+  const chunks = mymemory.splitText(input);
+  assert.ok(chunks.length > 1);
+  assert.ok(chunks.every((chunk) => Buffer.byteLength(chunk.text, 'utf8') <= mymemory.MAX_QUERY_BYTES));
+  assert.equal(chunks.map((chunk) => chunk.text + chunk.separator).join(''), input);
+});
+
+test('MyMemory adapter detects the source on the first chunk and reuses it for later chunks', async () => {
+  const calls = [];
+  const result = await mymemory.translate({
+    text: '  ' + 'Hello world. '.repeat(60) + '  ', sourceLanguage: 'auto', targetLanguage: 'id',
+    fetchImpl: async (url) => {
+      calls.push(new URL(url));
+      return { ok: true, status: 200, json: async () => ({
+        responseStatus: 200,
+        responseData: { translatedText: `Hasil ${calls.length}`, detectedLanguage: 'en' }
+      }) };
+    }
+  });
+  assert.ok(calls.length > 1);
+  assert.equal(calls[0].searchParams.get('langpair'), 'autodetect|id');
+  assert.equal(calls[1].searchParams.get('langpair'), 'en|id');
+  assert.ok(calls.every((url) => Buffer.byteLength(url.searchParams.get('q'), 'utf8') <= mymemory.MAX_QUERY_BYTES));
+  assert.equal(result.detectedLanguage, 'en');
+  assert.match(result.translation, /^  Hasil 1/);
+  assert.ok(result.translation.endsWith('  '));
+});
+
+test('MyMemory adapter reports quota and language-pair failures clearly', async () => {
+  await assert.rejects(() => mymemory.translate({
+    text: 'Hello', sourceLanguage: 'auto', targetLanguage: 'id',
+    fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ quotaFinished: true }) })
+  }), /daily quota/i);
+  await assert.rejects(() => mymemory.translate({
+    text: 'Hello', sourceLanguage: 'auto', targetLanguage: 'id',
+    fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ responseStatus: 403, responseDetails: 'Please select two distinct languages' }) })
+  }), /matches the target language/i);
+});
+
 test('main process returns provider result and never loses original text', async () => {
   const oldFetch = globalThis.fetch;
   globalThis.fetch = async (_url, options) => {
@@ -78,6 +119,28 @@ test('main process returns provider result and never loses original text', async
   assert.equal(events.at(-1).text, 'Hello');
   assert.equal(events.at(-1).translation, 'Halo');
   assert.equal(events.at(-1).sourceLanguage, 'en');
+  assert.equal(events.at(-1).provider, 'groq');
+});
+
+test('main process uses MyMemory without a Groq key and reports selected provider', async () => {
+  const oldFetch = globalThis.fetch;
+  let requestedUrl;
+  globalThis.fetch = async (url) => {
+    requestedUrl = new URL(url);
+    return { ok: true, status: 200, json: async () => ({
+      responseStatus: 200,
+      responseData: { translatedText: 'Halo', detectedLanguage: 'en' }
+    }) };
+  };
+  const events = [];
+  const sender = { id: 8, isDestroyed: () => false, send: (_channel, event) => events.push(event) };
+  try {
+    await translation.runTranslation(sender, { id: 'fallback', text: 'Hello', sourceLanguage: 'auto', targetLanguage: 'id' }, () => '');
+  } finally { globalThis.fetch = oldFetch; }
+  assert.equal(requestedUrl.hostname, 'api.mymemory.translated.net');
+  assert.equal(events.at(-1).kind, 'done');
+  assert.equal(events.at(-1).provider, 'mymemory');
+  assert.equal(events.at(-1).translation, 'Halo');
 });
 
 test('same source and target is returned without making a provider request', async () => {

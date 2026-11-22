@@ -140,6 +140,19 @@ function buildTabbar() {
     '<button class="tab-btn pin-btn" data-action="pin" aria-label="Pin island tetap terbuka" aria-pressed="false" title="Pin island tetap terbuka"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6l-1 5 3 3v2H7v-2l3-3zM12 14v6"/></svg></button>';
 }
 buildTabbar();
+function refreshTabbarOverflow() {
+  const hasOverflow = tabbar.scrollWidth > tabbar.clientWidth + 1;
+  tabbar.classList.toggle('has-overflow', hasOverflow);
+  if (!hasOverflow) tabbar.scrollLeft = 0;
+}
+new ResizeObserver(refreshTabbarOverflow).observe(tabbar);
+tabbar.addEventListener('wheel', (event) => {
+  if (tabbar.scrollWidth <= tabbar.clientWidth + 1) return;
+  const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+  if (!delta) return;
+  tabbar.scrollLeft += delta;
+  event.preventDefault();
+}, { passive: false });
 
 function selectTab(id) {
   // Klik tab yang sedang terbuka = kembali ke bar saja

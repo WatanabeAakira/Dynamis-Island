@@ -40,7 +40,7 @@ html, body {
     height var(--dur) var(--ease),
     border-radius var(--dur) var(--ease);
 }
-#island[data-mode="hover"]     { --w: 590px; --h: 52px;  --r: 26px; }
+#island[data-mode="hover"]     { --w: min(680px, calc(100vw - 16px)); --h: 52px; --r: 26px; }
 #island[data-mode="expanded"]  { --w: 650px; --h: 286px; --r: 34px; }
 #island[data-mode="expanded"][data-tab="clock"] { --h: 306px; }
 #island[data-mode="expanded"][data-tab="copy-text"] { --w: min(680px, calc(100vw - 28px)); --h: 376px; }
@@ -80,9 +80,30 @@ html, body {
   justify-content: center;
   gap: 4px;
   padding: 0 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
   opacity: 0;
   pointer-events: none;
   transition: height var(--dur) var(--ease), opacity .2s ease;
+}
+.tabbar::-webkit-scrollbar { display: none; }
+.tabbar.has-overflow { justify-content: flex-start; padding-right: 25px; }
+.tabbar.has-overflow::after {
+  content: '›';
+  position: sticky;
+  right: -13px;
+  z-index: 2;
+  flex: 0 0 17px;
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  margin-left: -17px;
+  background: linear-gradient(90deg, transparent, #080808 35%);
+  color: rgba(255,255,255,.62);
+  font-size: 18px;
+  pointer-events: none;
 }
 #island[data-mode="hover"] .tabbar { height: 52px; }
 #island:not([data-mode="collapsed"]) .tabbar {
@@ -94,8 +115,10 @@ html, body {
 .tab-btn {
   position: relative;
   width: 40px;
+  min-width: 24px;
+  max-width: 40px;
   height: 38px;
-  flex: none;
+  flex: 1 1 40px;
   display: grid;
   place-items: center;
   border: 0;
@@ -105,6 +128,7 @@ html, body {
   cursor: pointer;
   transition: background .2s, color .2s, transform .2s var(--ease);
 }
+.tab-sep { min-width: 1px; }
 .tab-btn svg {
   width: 20px;
   height: 20px;
