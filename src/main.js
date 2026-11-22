@@ -193,7 +193,9 @@ if (!gotLock) {
 function setupAutoUpdates() {
   if (!app.isPackaged) return;
   autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = false;
+  // Kalau pengguna menunda restart dari dialog, pasang update saat aplikasi
+  // ditutup berikutnya. Tanpa ini, update yang sudah diunduh akan tetap pending.
+  autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.on('error', (error) => console.error('[updater] Gagal cek/download update:', error.message));
   autoUpdater.on('update-downloaded', async (info) => {
     const result = await dialog.showMessageBox({
@@ -202,7 +204,7 @@ function setupAutoUpdates() {
       defaultId: 0,
       cancelId: 1,
       title: 'Update Dynamis Island siap',
-      message: `Versi ${info.version} sudah diunduh. Restart aplikasi untuk memasang update.`
+      message: `Versi ${info.version} sudah diunduh. Restart sekarang untuk memasang update, atau pilih Nanti dan update akan dipasang saat aplikasi ditutup.`
     });
     if (result.response === 0) autoUpdater.quitAndInstall();
   });
