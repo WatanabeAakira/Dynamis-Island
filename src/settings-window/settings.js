@@ -42,6 +42,127 @@ function toggle(value, onChange) {
   return h('label', { class: 'tg' }, input, h('span'));
 }
 
+// Native selects remain the source of truth for existing settings logic, while
+// this button/listbox pair provides a fully custom and keyboard-accessible UI.
+function customDropdown(select, { searchable = false } = {}) {
+  select.classList.add('native-select-proxy');
+  select.tabIndex = -1;
+  select.setAttribute('aria-hidden', 'true');
+  const wrap = h('div', { class: 'dropdown' });
+  const trigger = h('button', { type: 'button', class: 'dropdown-trigger', role: 'combobox', 'aria-haspopup': 'listbox', 'aria-expanded': 'false' });
+  const menu = h('div', { class: 'dropdown-menu', tabindex: '0', hidden: '' });
+  const menuId = `dropdown-${Math.random().toString(36).slice(2)}`;
+  const listId = `${menuId}-options`;
+  menu.id = menuId;
+  trigger.setAttribute('aria-controls', listId);
+  const search = searchable ? h('input', { class: 'dropdown-search', type: 'search', placeholder: 'Search…', 'aria-label': 'Search options' }) : null;
+  if (search) menu.append(search);
+  const optionsBox = h('div', { class: 'dropdown-options', role: 'listbox', id: listId, 'aria-label': select.getAttribute('aria-label') || 'Options' });
+  menu.append(optionsBox);
+  wrap.append(select, trigger);
+  wrap.append(menu);
+  let active = -1;
+  const options = () => [...select.options].filter((option) => option.value !== '');
+  const selectableOptions = () => options().filter((option) => !option.disabled);
+  const paint = () => {
+    const list = options();
+    const selected = select.selectedOptions[0];
+    trigger.replaceChildren(h('span', { class: 'dropdown-value' }, selected?.textContent || select.getAttribute('placeholder') || 'Select…'), h('span', { class: 'dropdown-arrow', html: IC.chev }));
+    trigger.disabled = select.disabled;
+    trigger.setAttribute('aria-label', select.getAttribute('aria-label') || selected?.textContent || 'Choose an option');
+    optionsBox.replaceChildren();
+    const filtered = list.filter((option) => !search || option.textContent.toLowerCase().includes(search.value.toLowerCase()));
+    if (!filtered.length) optionsBox.append(h('div', { class: 'dropdown-empty', role: 'status' }, 'No options found'));
+    filtered.forEach((option, i) => {
+      const item = h('button', { type: 'button', role: 'option', id: `${menuId}-item-${i}`, class: `dropdown-option${option.disabled ? ' is-disabled' : ''}`, 'aria-disabled': String(option.disabled), 'aria-selected': String(option.value === select.value), 'data-value': option.value },
+        h('span', {}, option.textContent), h('span', { class: 'dropdown-check', 'aria-hidden': 'true' }, option.value === select.value ? '✓' : ''));
+      item.disabled = option.disabled;
+      item.addEventListener('mouseenter', () => { active = filtered.filter((candidate) => !candidate.disabled).findIndex((candidate) => candidate.value === option.value); markActive(); });
+      item.addEventListener('click', () => choose(option));
+      optionsBox.append(item);
+    });
+    if (active >= filtered.length) active = filtered.length - 1;
+    markActive();
+  };
+  const markActive = () => {
+    const items = [...optionsBox.querySelectorAll('.dropdown-option:not(:disabled)')];
+    items.forEach((item, i) => item.classList.toggle('highlight', i === active));
+    if (items[active]) optionsBox.setAttribute('aria-activedescendant', items[active].id);
+    else optionsBox.removeAttribute('aria-activedescendant');
+  };
+  const position = () => {
+    const rect = trigger.getBoundingClientRect();
+    menu.style.minWidth = `${rect.width}px`;
+    menu.style.left = `${Math.max(8, Math.min(rect.left, innerWidth - rect.width - 8))}px`;
+    menu.style.maxHeight = `${Math.max(120, Math.min(320, innerHeight - 24))}px`;
+    menu.style.maxHeight = `${Math.max(120, Math.min(320, innerHeight - 24))}px`;
+    const roomBelow = innerHeight - rect.bottom;
+    menu.style.top = roomBelow < 240 && rect.top > roomBelow ? 'auto' : `${rect.bottom + 6}px`;
+    if (menu.style.top === 'auto') menu.style.bottom = `${innerHeight - rect.top + 6}px`;
+    else menu.style.bottom = 'auto';
+  };
+  const close = (restore = false) => {
+    if (menu.hidden) return;
+    menu.hidden = true; trigger.setAttribute('aria-expanded', 'false');
+    if (restore) trigger.focus();
+  };
+  const choose = (option) => {
+    if (!option || option.disabled) return;
+    select.value = option.value;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    paint(); close(true);
+  };
+  const open = () => {
+    if (select.disabled) return;
+    document.querySelectorAll('.dropdown-menu:not([hidden])').forEach((other) => { if (other !== menu) other.hidden = true; });
+    paint(); menu.hidden = false; trigger.setAttribute('aria-expanded', 'true'); position();
+    active = Math.max(0, selectableOptions().findIndex((option) => option.value === select.value)); markActive();
+    if (search) { search.value = ''; paint(); search.focus(); } else menu.focus?.();
+  };
+  trigger.addEventListener('click', () => menu.hidden ? open() : close());
+  trigger.addEventListener('keydown', (event) => {
+    if (['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(event.key)) { event.preventDefault(); open(); }
+  });
+  menu.addEventListener('keydown', (event) => {
+    const items = [...optionsBox.querySelectorAll('.dropdown-option:not(:disabled)')];
+    if (event.key === 'Escape') { event.preventDefault(); close(true); }
+    else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); active = (active + (event.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length; markActive(); items[active]?.scrollIntoView({ block: 'nearest' }); }
+    else if (event.key === 'Home' || event.key === 'End') { event.preventDefault(); active = event.key === 'Home' ? 0 : items.length - 1; markActive(); items[active]?.scrollIntoView({ block: 'nearest' }); }
+    else if (event.key === 'Enter' || (event.key === ' ' && event.target === menu)) { event.preventDefault(); choose(selectableOptions().filter((option) => !search || option.textContent.toLowerCase().includes(search.value.toLowerCase()))[active]); }
+    else if (event.key === 'Tab') close();
+  });
+  search?.addEventListener('input', () => { active = 0; paint(); });
+  select.addEventListener('change', paint);
+  select.addEventListener('disabled-change', paint);
+  new MutationObserver(paint).observe(select, { childList: true, subtree: true, attributes: true });
+  paint();
+  return wrap;
+}
+
+function repositionOpenDropdowns() {
+  for (const menu of document.querySelectorAll('.dropdown-menu:not([hidden])')) {
+    const trigger = document.getElementById(menu.id)?.parentElement?.querySelector('.dropdown-trigger');
+    if (!trigger) continue;
+    const rect = trigger.getBoundingClientRect();
+    menu.style.minWidth = `${rect.width}px`;
+    menu.style.left = `${Math.max(8, Math.min(rect.left, innerWidth - rect.width - 8))}px`;
+    const roomBelow = innerHeight - rect.bottom;
+    menu.style.top = roomBelow < 240 && rect.top > roomBelow ? 'auto' : `${rect.bottom + 6}px`;
+    menu.style.bottom = menu.style.top === 'auto' ? `${innerHeight - rect.top + 6}px` : 'auto';
+  }
+}
+document.addEventListener('pointerdown', (event) => {
+  for (const trigger of document.querySelectorAll('.dropdown-trigger[aria-expanded="true"]')) {
+    const menu = document.getElementById(trigger.getAttribute('aria-controls'));
+    if (!trigger.parentElement.contains(event.target) && !menu?.contains(event.target)) {
+      if (menu) menu.hidden = true;
+      trigger.setAttribute('aria-expanded', 'false');
+    }
+  }
+});
+window.addEventListener('resize', repositionOpenDropdowns);
+document.getElementById('main')?.addEventListener('scroll', repositionOpenDropdowns, true);
+
 function segmented(options, value, onChange) {
   const wrap = h('div', { class: 'seg' });
   const btns = options.map(([v, t]) => {
@@ -67,11 +188,15 @@ function stepper({ value, min, max, step = 1, unit = '' }, onChange) {
 }
 
 function row(title, desc, control) {
-  return h('div', { class: 'row' },
+  const element = h('div', { class: 'row', tabindex: '-1', 'data-setting-title': title, 'data-setting-description': desc instanceof Node ? desc.textContent : (desc || '') },
     h('div', { class: 'rt' }, h('b', {}, title), desc instanceof Node ? desc : desc ? h('small', {}, desc) : ''),
     h('div', { class: 'rc' }, control || ''));
+  return element;
 }
 const card = (...rows) => h('div', { class: 'card' }, rows);
+const group = (title, description, icon, ...rows) => h('section', { class: 'settings-group' },
+  h('div', { class: 'group-head' }, h('i', { html: icon }), h('div', {}, h('b', {}, title), h('small', {}, description))),
+  card(...rows));
 
 // ---------- Data ----------
 let S = {};
@@ -79,6 +204,7 @@ async function save(patch) { S = await api.setSettings(patch); }
 api.onSettings((s) => {
   const changed = S.language !== s.language;
   S = s;
+  document.documentElement.style.setProperty('--accent', /^#[0-9a-f]{6}$/i.test(S.accent || '') ? S.accent : '#ff9f0a');
   if (changed) { buildNav(); show(current); }
 });
 
@@ -101,7 +227,7 @@ function pageGeneral(root) {
 }
 
 function pageLanguage(root) {
-  const select = h('select', { class: 'txt', 'aria-label': 'Bahasa aplikasi' });
+  const select = h('select', { 'aria-label': 'Bahasa aplikasi' });
   select.append(h('option', { value: 'id' }, 'Bahasa Indonesia'), h('option', { value: 'en' }, 'English'));
   select.value = S.language === 'en' ? 'en' : 'id';
   select.addEventListener('change', async () => {
@@ -110,7 +236,7 @@ function pageLanguage(root) {
     buildNav();
     show('language');
   });
-  root.append(card(row('Bahasa aplikasi', 'Pilih bahasa yang dipakai di aplikasi. Perubahan langsung diterapkan.', select)));
+  root.append(card(row('Bahasa aplikasi', 'Pilih bahasa yang dipakai di aplikasi. Perubahan langsung diterapkan.', customDropdown(select))));
 }
 
 function pageAppearance(root) {
@@ -136,12 +262,14 @@ function pageBehavior(root) {
   range.value = S.collapseDelay ?? 350;
   range.addEventListener('input', () => { out.textContent = `${range.value} ms`; });
   range.addEventListener('change', () => save({ collapseDelay: Number(range.value) }));
-  root.append(card(
-    row('Auto Full Closed saat aplikasi fullscreen', 'Island jadi strip tipis saat aplikasi foreground memenuhi layar, lalu kembali compact setelah fullscreen berakhir.', toggle(S.autoFullClosed !== false, (v) => save({ autoFullClosed: v }))),
-    row('Buka island saat kursor di atasnya', 'Jika dimatikan, island dibuka dengan klik.', toggle(S.openOnHover, (v) => save({ openOnHover: v }))),
-    row('Jeda sebelum menutup', 'Waktu tunggu setelah kursor meninggalkan island sebelum island menutup.', h('div', { class: 'rg' }, range, out)),
-    row('Info lagu di mode collapse', 'Saat lagu berganti, island yang tertutup menampilkan cover dan judul sebentar.', toggle(S.trackToast !== false, (v) => save({ trackToast: v })))
-  ));
+  root.append(
+    group('Island Visibility', 'Control when the island appears and hides on your screen.', IC.general,
+      row('Auto Full Closed saat aplikasi fullscreen', 'Island jadi strip tipis saat aplikasi foreground memenuhi layar, lalu kembali compact setelah fullscreen berakhir.', toggle(S.autoFullClosed !== false, (v) => save({ autoFullClosed: v }))),
+      row('Buka island saat kursor di atasnya', 'Jika dimatikan, island dibuka dengan klik.', toggle(S.openOnHover, (v) => save({ openOnHover: v })))),
+    group('Interaction', 'Customize the island’s response to your mouse movement.', IC.behavior,
+      row('Jeda sebelum menutup', 'Waktu tunggu setelah kursor meninggalkan island sebelum island menutup.', h('div', { class: 'rg' }, range, out)),
+      row('Info lagu di mode collapse', 'Saat lagu berganti, island yang tertutup menampilkan cover dan judul sebentar.', toggle(S.trackToast !== false, (v) => save({ trackToast: v }))))
+  );
 }
 
 const CLOCK_DEFAULTS = { timeFormat: '24h', dateFormat: 'long', showSeconds: true, showAdditionalInfo: true, analogSecondHand: true };
@@ -150,7 +278,7 @@ const saveClock = (patch) => save({ clock: { ...CT(), ...patch } });
 
 function pageClock(root) {
   const c = CT();
-  const dates = h('select', { class: 'txt', 'aria-label': 'Format tanggal' });
+  const dates = h('select', { 'aria-label': 'Format tanggal' });
   const sample = new Date(2026, 10, 6);
   const locale = S.language === 'en' ? 'en-US' : 'id-ID';
   const longDate = new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(sample);
@@ -167,7 +295,7 @@ function pageClock(root) {
   dates.addEventListener('change', () => saveClock({ dateFormat: dates.value }));
   root.append(card(
     row('Format waktu', 'Pilih format 12 jam atau 24 jam.', segmented([['24h', '24-Jam'], ['12h', '12-Jam']], c.timeFormat, (v) => saveClock({ timeFormat: v }))),
-    row('Format tanggal', 'Bahasa mengikuti bahasa aplikasi dan lokal Windows.', dates),
+    row('Format tanggal', 'Bahasa mengikuti bahasa aplikasi dan lokal Windows.', customDropdown(dates)),
     row('Tampilkan detik digital', 'Tampilkan detik pada jam digital.', toggle(c.showSeconds, (v) => saveClock({ showSeconds: v }))),
     row('Tampilkan info tambahan', 'Minggu, hari ke-, dan waktu aktif aplikasi.', toggle(c.showAdditionalInfo, (v) => saveClock({ showAdditionalInfo: v }))),
     row('Jarum detik analog', 'Gerakan jarum detik yang halus dan terus-menerus.', toggle(c.analogSecondHand, (v) => saveClock({ analogSecondHand: v })))
@@ -411,11 +539,11 @@ function pageAi(root) {
 
 function pageTranslation(root) {
   const current = { sourceLanguage: 'auto', targetLanguage: '', autoDetect: true, autoTranslate: true, provider: 'auto', ...(S.translation || {}) };
-  const source = h('select', { class: 'sel' });
+  const source = h('select', { 'aria-label': 'Source language' });
   source.append(h('option', { value: 'auto' }, 'Auto-detect'));
   source.value = current.autoDetect ? 'auto' : current.sourceLanguage;
 
-  const target = h('select', { class: 'sel' });
+  const target = h('select', { 'aria-label': 'Target language' });
   api.translateDefaults().then((defaults) => {
     for (const language of (defaults?.languages || [])) {
       source.append(h('option', { value: language.code }, `${language.name} · ${language.native}`));
@@ -436,6 +564,7 @@ function pageTranslation(root) {
   const autoDetect = toggle(current.autoDetect, (value) => {
     void saveTranslation({ autoDetect: value, sourceLanguage: value ? 'auto' : (source.value === 'auto' ? 'en' : source.value) });
     source.disabled = value;
+    source.dispatchEvent(new Event('disabled-change'));
     if (!value && source.value === 'auto') source.value = 'en';
   });
   source.disabled = current.autoDetect;
@@ -443,7 +572,7 @@ function pageTranslation(root) {
   target.addEventListener('change', () => void saveTranslation({ targetLanguage: target.value }));
 
   const autoTranslate = toggle(current.autoTranslate, (value) => void saveTranslation({ autoTranslate: value }));
-  const provider = h('select', { class: 'sel' },
+  const provider = h('select', { 'aria-label': 'Translation provider' },
     h('option', { value: 'auto' }, 'Automatic · Groq first, MyMemory if no key'),
     h('option', { value: 'groq' }, 'Prefer Groq'),
     h('option', { value: 'mymemory' }, 'MyMemory · no key required'));
@@ -454,10 +583,10 @@ function pageTranslation(root) {
   root.append(
     card(
       row('Automatically detect source language', 'Detect the language as you type. You can turn this off to choose a source language.', autoDetect),
-      row('Source language', 'Used when automatic detection is off.', source),
-      row('Target language', 'Defaults to the Windows display language. Choose another language to keep it as your preference.', target),
+      row('Source language', 'Used when automatic detection is off.', customDropdown(source, { searchable: true })),
+      row('Target language', 'Defaults to the Windows display language. Choose another language to keep it as your preference.', customDropdown(target, { searchable: true })),
       row('Translate while typing', 'Waits briefly after you stop typing before sending a request.', autoTranslate),
-      row('Translation provider', 'Automatic prioritizes Groq when its API key is saved. Without a key, it uses MyMemory; you can also choose either provider.', provider),
+      row('Translation provider', 'Automatic prioritizes Groq when its API key is saved. Without a key, it uses MyMemory; you can also choose either provider.', customDropdown(provider)),
       row('Screen selection shortcut', 'Select text from anywhere on screen and translate it.', shortcut)
     ),
     h('p', { class: 'note' }, 'OCR and screenshots stay on this device. Only the text you enter, paste, or extract is sent to the selected translation provider. MyMemory works without setup and has an anonymous daily quota of 5,000 characters; longer input is sent in small segments.')
@@ -475,6 +604,48 @@ const PAGES = {
   ai: { title: 'Asisten AI', desc: 'Kunci API Groq, model, dan konteks yang dipakai asisten.', icon: IC.ai, build: pageAi },
   translation: { title: 'Terjemahan', desc: 'Bahasa, deteksi otomatis, dan cara kerja Translate Anything.', icon: IC.ai, build: pageTranslation },
   notif: { title: 'Notifikasi', desc: 'Durasi banner, riwayat, dan isi pesan notifikasi.', icon: IC.notif, build: pageNotif },
+  clipboard: { title: 'Clipboard Manager', desc: 'Capture and manage local clipboard history.', icon: IC.tray, build: (root) => {
+    const c = S.clipboard || {};
+    root.append(group('General', 'Capture supported clipboard content locally on this device.', IC.features,
+      row('Enable Clipboard Manager', 'Capture changes through the native Windows clipboard listener.', toggle(c.enabled !== false, async (v) => { S = await save({ clipboard: { ...c, enabled: v } }); api.helperSend({ cmd: 'clipboard-config', enabled: v, capture: c.capture !== false, maxItems: c.maxItems || 200 }); })),
+      row('Automatic capture', 'Pause and resume clipboard history capture.', toggle(c.capture !== false, async (v) => { S = await save({ clipboard: { ...c, capture: v } }); api.helperSend({ cmd: 'clipboard-config', enabled: c.enabled !== false, capture: v, maxItems: c.maxItems || 200 }); })),
+      row('Maximum history items', 'Keeps pinned items and trims older unpinned items.', stepper({ value: c.maxItems || 200, min: 50, max: 500, step: 50, unit: ' items' }, async (v) => { S = await save({ clipboard: { ...c, maxItems: v } }); api.helperSend({ cmd: 'clipboard-config', enabled: c.enabled !== false, capture: c.capture !== false, maxItems: v }); }))));
+  } },
+  notes: { title: 'Quick Notes', desc: 'Local note storage and editor behavior.', icon: IC.lyrics, build: (root) => {
+    const n = S.notes || {};
+    root.append(group('General', 'Notes are stored locally in the application data folder.', IC.features,
+      row('Enable Quick Notes', 'Show Quick Notes in Dynamis Island.', toggle(n.enabled !== false, async (v) => { S = await save({ notes: { ...n, enabled: v } }); })),
+      row('Automatic saving', 'Save edits shortly after typing stops.', toggle(n.autosave !== false, async (v) => { S = await save({ notes: { ...n, autosave: v } }); }))));
+  } },
+  'quick-settings': { title: 'Quick Settings', desc: 'Configure Windows controls shown in the Island.', icon: IC.general, build: (root) => {
+    const q = S.quickSettings || {}, controls = q.controls || {};
+    const controlRows = [['wifi','Wi-Fi'],['bluetooth','Bluetooth'],['airplane','Airplane Mode'],['doNotDisturb','Do Not Disturb'],['battery','Battery Saver'],['microphone','Microphone'],['brightness','Brightness'],['nightLight','Night Light'],['theme','Theme'],['volume','Master Volume']].map(([key,label]) => row(label, 'Show this control in Quick Settings.', toggle(controls[key] !== false, async (v) => { const current=S.quickSettings||{}; S=await save({quickSettings:{...current,controls:{...(current.controls||{}),[key]:v}}}); })));
+    root.append(group('General', 'Control the Quick Settings feature and its compact indicator.', IC.general,
+      row('Enable Quick Settings', 'Show the feature tab in Dynamis Island.', toggle(q.enabled !== false, async (v) => { S=await save({quickSettings:{...(S.quickSettings||{}),enabled:v}}); })),
+      row('Compact status indicator', 'Show current connectivity status where available.', toggle(q.compactStatus !== false, async (v) => { S=await save({quickSettings:{...(S.quickSettings||{}),compactStatus:v}}); }))),
+      group('Controls', 'Choose which Windows controls appear in the feature.', IC.features, ...controlRows),
+      group('Integrations', 'System volume uses the existing Audio Control backend.', IC.ai,
+        row('Reuse Audio Control master volume', 'Volume and mute changes use the shared Windows Core Audio service.', h('span',{class:'tag'},'Integrated'))));
+  } },
+  'system-monitor': { title: 'System Monitor', desc: 'Configure sampling, process list, and performance alerts.', icon: IC.behavior, build: (root) => {
+    const m=S.systemMonitor||{}, metrics=m.metrics||{};
+    const metricRows=[['cpu','CPU'],['ram','RAM'],['gpu','GPU'],['disk','Disk'],['temperature','Temperature'],['network','Network']].map(([key,label])=>row(label, key==='gpu'||key==='temperature'?'Displayed only when a supported provider is available.':'Include this metric in the monitor display.',toggle(metrics[key]!==false,async(v)=>{const current=S.systemMonitor||{};S=await save({systemMonitor:{...current,metrics:{...(current.metrics||{}),[key]:v}}});})));
+    root.append(group('General', 'Enable monitoring and select the compact summary metric.', IC.general,
+      row('Enable System Monitor', 'Show the feature tab and collect metrics when requested.', toggle(m.enabled!==false,async(v)=>{S=await save({systemMonitor:{...(S.systemMonitor||{}),enabled:v}});})),
+      row('Compact Mode metric', 'The compact indicator uses this cached value.', segmented([['cpu','CPU'],['ram','RAM']],m.compactMetric||'cpu',async(v)=>{S=await save({systemMonitor:{...(S.systemMonitor||{}),compactMetric:v}});}))),
+      group('Monitoring', 'Metrics are sampled once and shared with visible components.', IC.features, ...metricRows),
+      group('Graphs & processes', 'Tune refresh intervals and the compact top process list.', IC.behavior,
+        row('Update interval (ms)', 'Expanded monitoring sample interval.', stepper({value:m.intervalMs||1000,min:500,max:10000,step:500,unit:' ms'},async(v)=>{S=await save({systemMonitor:{...(S.systemMonitor||{}),intervalMs:v}});})),
+        row('Graph history (seconds)', 'Bounded in-memory history window.', segmented([[30,'30s'],[60,'60s'],[120,'120s']],m.graphHistorySeconds||60,async(v)=>{S=await save({systemMonitor:{...(S.systemMonitor||{}),graphHistorySeconds:v}});})),
+        row('Top process monitoring', 'Sample process CPU and working memory every three seconds while expanded.', toggle(m.processMonitoring!==false,async(v)=>{S=await save({systemMonitor:{...(S.systemMonitor||{}),processMonitoring:v}});})),
+        row('Top processes', 'Maximum number of processes shown.', stepper({value:m.processCount||5,min:3,max:10,step:1,unit:' processes'},async(v)=>{S=await save({systemMonitor:{...(S.systemMonitor||{}),processCount:v}});})),
+        row('Default process sorting', 'Sort by CPU use or working memory.', segmented([['cpu','CPU'],['memory','RAM']],m.sort||'cpu',async(v)=>{S=await save({systemMonitor:{...(S.systemMonitor||{}),sort:v}});}))));
+    root.append(group('Notifications', 'Use the existing Dynamis Island notification list with a cooldown.', IC.notif,
+      row('Performance alerts', 'Alert when CPU or RAM exceeds its threshold.', toggle(m.alertsEnabled===true,async(v)=>{S=await save({systemMonitor:{...(S.systemMonitor||{}),alertsEnabled:v}});})),
+      row('CPU alert threshold', 'Trigger when CPU usage reaches this level.', stepper({value:m.cpuThreshold||95,min:50,max:100,step:5,unit:' %'},async(v)=>{S=await save({systemMonitor:{...(S.systemMonitor||{}),cpuThreshold:v}});})),
+      row('RAM alert threshold', 'Trigger when memory usage reaches this level.', stepper({value:m.ramThreshold||90,min:50,max:99,step:5,unit:' %'},async(v)=>{S=await save({systemMonitor:{...(S.systemMonitor||{}),ramThreshold:v}});})),
+      h('p',{class:'note'},'GPU utilization, GPU memory, disk activity, and temperature sensors are marked unavailable until a reliable hardware provider is available.')));
+  } },
   tray: { title: 'File Tray', desc: 'Tampilan, urutan, dan lencana item di File Tray.', icon: IC.tray, build: pageTray },
   lyrics: { title: 'Lirik', desc: 'Sumber, waktu, dan salinan lirik di tab Media.', icon: IC.lyrics, build: pageLyrics }
 };
@@ -484,8 +655,8 @@ const NAV = [
 ];
 
 // Warna ikon per halaman (gaya ikon sistem macOS)
-const TILE = { general: '#8e8e93', language: '#5e5ce6', appearance: '#0a84ff', behavior: '#ff9f0a', clock: '#0a84ff', ai: '#bf5af2', translation: '#5d9a73', notif: '#ff453a', apps: '#30b0c7', tray: '#5e5ce6', lyrics: '#ff375f' };
-const SECTIONS = [{ id: 'general' }, { id: 'language' }, { id: 'appearance' }, { id: 'behavior' }, { sec: 'Fitur', ids: ['ai', 'translation', 'notif', 'apps', 'tray', 'lyrics', 'clock'] }];
+const TILE = { general: '#8e8e93', language: '#5e5ce6', appearance: '#0a84ff', behavior: '#ff9f0a', clock: '#0a84ff', ai: '#bf5af2', translation: '#5d9a73', notif: '#ff453a', apps: '#30b0c7', tray: '#5e5ce6', lyrics: '#ff375f', clipboard: '#8b5cf6', notes: '#c084fc', 'quick-settings':'#38bdf8','system-monitor':'#22d3ee' };
+const SECTIONS = [{ id: 'general' }, { id: 'language' }, { id: 'appearance' }, { id: 'behavior' }, { sec: 'Fitur', ids: ['ai', 'translation', 'notif', 'apps', 'tray', 'lyrics', 'clock', 'clipboard', 'notes','quick-settings','system-monitor'] }];
 
 let current = 'general';
 function show(id) {
@@ -493,12 +664,14 @@ function show(id) {
   current = id;
   setLanguage(S.language);
   const p = PAGES[id];
+  document.documentElement.style.setProperty('--accent', /^#[0-9a-f]{6}$/i.test(S.accent || '') ? S.accent : '#ff9f0a');
   document.getElementById('bt').textContent = p.title;
   const main = document.getElementById('main');
   main.replaceChildren(h('div', { class: 'phead' },
     h('i', { html: p.icon, style: `background:${TILE[id]}` }),
     h('div', {}, h('h1', {}, p.title), h('p', {}, p.desc))));
   p.build(main);
+  main.dataset.page = id;
   document.documentElement.lang = S.language === 'en' ? 'en' : 'id';
   document.title = S.language === 'en' ? 'Dynamis Island Settings' : 'Pengaturan Dynamis Island';
   localizeTree(document.body, S.language);
@@ -506,6 +679,7 @@ function show(id) {
   document.querySelectorAll('.nav button[data-page]').forEach((b) => b.classList.toggle('on', b.dataset.page === id));
 }
 
+let searchCatalog;
 function buildNav() {
   const item = (id) => h('button', { type: 'button', 'data-page': id, onclick: () => show(id) },
     h('span', { class: 'ti', style: `background:${TILE[id]}`, html: PAGES[id].icon }),
@@ -515,9 +689,62 @@ function buildNav() {
     if (sct.id) { nav.append(item(sct.id)); continue; }
     nav.append(h('div', { class: 'sec' }, sct.sec), ...sct.ids.map(item));
   }
+  const searchInput = h('input', { class: 'settings-search-input', type: 'search', placeholder: 'Search settings...', 'aria-label': 'Search settings' });
+  const resultBox = h('div', { class: 'search-results', role: 'listbox', hidden: '' });
+  const searchWrap = h('div', { class: 'settings-search' }, h('span', { html: svg('<circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4 4"/>') }), searchInput, h('kbd', {}, 'Ctrl K'), resultBox);
+  if (!searchCatalog) {
+    searchCatalog = [];
+    for (const [id, page] of Object.entries(PAGES)) {
+      const scratch = h('div');
+      try { page.build(scratch); } catch {}
+      for (const setting of scratch.querySelectorAll('.row')) searchCatalog.push({ id, title: setting.dataset.settingTitle || '', desc: setting.dataset.settingDescription || '' });
+    }
+  }
+  const renderResults = () => {
+    const query = searchInput.value.trim().toLocaleLowerCase();
+    resultBox.replaceChildren();
+    if (!query) { resultBox.hidden = true; return; }
+    const matches = [
+      ...Object.entries(PAGES).filter(([, page]) => `${page.title} ${page.desc}`.toLocaleLowerCase().includes(query)).map(([id, page]) => ({ id, title: page.title, desc: page.desc, category: true })),
+      ...searchCatalog.filter((item) => `${item.title} ${item.desc} ${PAGES[item.id].title}`.toLocaleLowerCase().includes(query))
+    ].slice(0, 12);
+    if (!matches.length) resultBox.append(h('div', { class: 'search-empty' }, 'No matching settings'));
+    matches.forEach((item) => {
+      const result = h('button', { type: 'button', role: 'option', class: 'search-result' }, h('b', {}, item.title), h('small', {}, item.category ? 'Category' : PAGES[item.id].title));
+      result.addEventListener('click', () => {
+        searchInput.value = ''; resultBox.hidden = true; show(item.id);
+        if (!item.category) {
+          const target = [...document.querySelectorAll(`#main .row`)].find((candidate) => candidate.dataset.settingTitle === item.title);
+          target?.scrollIntoView({ behavior: S.reducedMotion ? 'instant' : 'smooth', block: 'center' });
+          target?.classList.add('search-target'); target?.focus({ preventScroll: true });
+          setTimeout(() => target?.classList.remove('search-target'), 1800);
+        }
+      });
+      resultBox.append(result);
+    });
+    resultBox.hidden = false;
+  };
+  searchInput.addEventListener('input', renderResults);
+  searchInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') { searchInput.value = ''; renderResults(); }
+    if (event.key === 'ArrowDown' && !resultBox.hidden) { event.preventDefault(); resultBox.querySelector('.search-result')?.focus(); }
+  });
+  searchWrap.addEventListener('keydown', (event) => {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    const results = [...resultBox.querySelectorAll('.search-result')];
+    const index = results.indexOf(document.activeElement);
+    const next = event.key === 'ArrowDown' ? Math.min(results.length - 1, index + 1) : Math.max(0, index - 1);
+    if (results.length) { event.preventDefault(); results[next]?.focus(); }
+  });
+  const version = h('small', {}, 'Loading version…');
+  const updateStatus = h('small', { class: 'update-status' }, '');
+  const updateButton = h('button', { class: 'update-button', type: 'button', onclick: async () => { updateButton.disabled = true; updateStatus.textContent = 'Checking…'; const result = await api.checkUpdates(); updateStatus.textContent = result.message; updateButton.disabled = false; } }, '↻  Check for Updates');
+  api.appInfo().then((info) => { version.textContent = `v${info.version}`; });
   document.getElementById('side').replaceChildren(
-    h('div', { class: 'profile' }, h('i', { html: IC.brand }), h('div', {}, h('b', {}, 'Dynamis Island'), h('small', {}, 'Pengaturan'))),
-    nav);
+    h('div', { class: 'sidebar-top' }, h('div', { class: 'profile' }, h('i', { html: IC.brand }), h('div', {}, h('b', {}, 'Dynamis Island'), h('small', {}, 'Settings'))), searchWrap, nav),
+    h('div', { class: 'sidebar-footer' }, h('div', { class: 'footer-brand' }, h('i', { html: IC.brand }), h('div', {}, h('b', {}, 'Dynamis Island'), version)), updateStatus, updateButton));
+  searchInput.addEventListener('keydown', (event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); searchInput.focus(); } });
+  document.addEventListener('keydown', (event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); searchInput.focus(); } });
   localizeTree(document.body, S.language);
 }
 
@@ -527,12 +754,20 @@ function wireWindow() {
 }
 
 async function init() {
-  S = await api.getSettings();
-  setLanguage(S.language);
-  watchLocale(document.body, () => S.language);
   wireWindow();
-  buildNav();
-  show((location.hash || '').slice(1) || 'general');
-  api.onSettingsPage((p) => show(p));
+  try {
+    S = await api.getSettings();
+    setLanguage(S.language);
+    watchLocale(document.body, () => S.language);
+    buildNav();
+    show((location.hash || '').slice(1) || 'general');
+    api.onSettingsPage((p) => show(p));
+  } catch (error) {
+    console.error('[settings] initialization failed:', error);
+    const main = document.getElementById('main');
+    main.replaceChildren(h('section', { class: 'settings-init-error', role: 'alert' },
+      h('h1', {}, 'Settings could not be loaded'),
+      h('p', {}, error?.message || 'The settings bridge did not respond. Close this window and try again.')));
+  }
 }
 init();

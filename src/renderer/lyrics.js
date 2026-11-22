@@ -65,6 +65,19 @@ export function indexAt(pos) {
   return ans;
 }
 
+// Cari kata terakhir yang timestamp-nya sudah dilewati dalam Enhanced LRC.
+// Binary search membuat update karaoke murah walau satu baris berisi banyak kata.
+export function activeWordAt(words, positionMs) {
+  if (!Array.isArray(words) || !words.length) return -1;
+  let lo = 0, hi = words.length - 1, answer = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (words[mid].t <= positionMs) { answer = mid; lo = mid + 1; }
+    else hi = mid - 1;
+  }
+  return answer;
+}
+
 const NOTES = {
   loading: 'Mencari lirik...',
   none: 'Belum ada lirik untuk lagu ini',
@@ -142,24 +155,24 @@ export function createPanel(root, opts = {}) {
     const l = slotLines[k];
     if (l && l.t != null && opts.canSeek && opts.canSeek()) opts.seek(l.t);
   }));
-  let lastIdx = -99, lastKey = '', lastLines = null, lastFlash = '', spans = [], fills = [], curLine = null;
+  let lastIdx = -99, lastKey = '', lastLines = null, lastFlash = '', spans = [], curLine = null, activeWord = -1;
   let slotLines = {}, lastSeekable = null;
 
   const setSimple = (el, line) => { el.textContent = line ? line.text : ''; };
 
-  function slide() {
+  function slide(direction = 1) {
     track.style.transition = 'none';
-    track.style.transform = 'translateY(16px)';
-    track.style.opacity = '.4';
+    track.style.transform = `translateY(${direction < 0 ? '-12px' : '12px'})`;
+    track.style.opacity = '.55';
     void track.offsetWidth;
-    track.style.transition = 'transform .45s cubic-bezier(.32,.72,0,1), opacity .45s';
+    track.style.transition = 'transform .42s cubic-bezier(.2,.72,.2,1), opacity .34s ease';
     track.style.transform = '';
     track.style.opacity = '';
   }
 
   function setCur(line) {
     curLine = line;
-    spans = []; fills = [];
+    spans = []; activeWord = -1;
     if (!line) { cur.textContent = '\u266A'; return; }
     if (line.words && line.words.length) {
       cur.textContent = '';
@@ -167,8 +180,9 @@ export function createPanel(root, opts = {}) {
         const s = document.createElement('span');
         s.className = 'w';
         s.textContent = w.text;
+        s.style.setProperty('--f', '0%');
         cur.appendChild(s);
-        spans.push(s); fills.push(-1);
+        spans.push(s);
       }
     } else {
       cur.textContent = line.text || '\u266A';
@@ -193,21 +207,35 @@ export function createPanel(root, opts = {}) {
       const seekable = !!(opts.canSeek && opts.canSeek());
       if (seekable !== lastSeekable) { lastSeekable = seekable; track.classList.toggle('seekable', seekable); }
       if (idx !== lastIdx || L.key !== lastKey || L.lines !== lastLines) {
+        const previousIdx = lastIdx;
         const first = lastIdx === -99 || L.key !== lastKey || L.lines !== lastLines;
         lastIdx = idx; lastKey = L.key; lastLines = L.lines;
         slotLines = { prev: idx > 0 ? L.lines[idx - 1] : null, cur: idx >= 0 ? L.lines[idx] : null, next: L.lines[idx + 1] || null };
         setSimple(prev, slotLines.prev);
         setCur(slotLines.cur);
         setSimple(next, slotLines.next);
-        if (!first) slide();
+        const delta = idx - previousIdx;
+        // A normal next/previous line gets a directional glide. Seeking across
+        // several lines swaps directly so the animation does not trail behind.
+        if (!first && Math.abs(delta) === 1) slide(Math.sign(delta));
       }
       // Karaoke per kata (Enhanced LRC)
       if (curLine && curLine.words) {
         const t = pos + LEAD_MS + offsetMs;
-        curLine.words.forEach((w, i) => {
-          const f = t >= w.end ? 100 : t <= w.t ? 0 : Math.round(((t - w.t) / (w.end - w.t)) * 100);
-          if (f !== fills[i]) { fills[i] = f; spans[i].style.setProperty('--f', f + '%'); }
-        });
+        const wordIndex = activeWordAt(curLine.words, t);
+        if (wordIndex !== activeWord) {
+          activeWord = wordIndex;
+          spans.forEach((span, i) => {
+            span.classList.toggle('done', i < wordIndex);
+            if (i !== wordIndex) span.style.setProperty('--f', i < wordIndex ? '100%' : '0%');
+          });
+        }
+        if (wordIndex >= 0) {
+          const word = curLine.words[wordIndex];
+          const duration = Math.max(1, (word.end ?? word.t + 150) - word.t);
+          const fill = Math.round(Math.max(0, Math.min(1, (t - word.t) / duration)) * 100);
+          if (spans[wordIndex].style.getPropertyValue('--f') !== `${fill}%`) spans[wordIndex].style.setProperty('--f', `${fill}%`);
+        }
       }
     }
   };

@@ -35,7 +35,11 @@ const DEFAULT_SETTINGS = {
   autoStart: false,
   lyricsDir: '',        // folder file .lrc / .elrc lokal
   copyText: { enabled: true, language: '' },
-  translation: { sourceLanguage: 'auto', targetLanguage: '', autoDetect: true, autoTranslate: true, provider: 'auto' }
+  translation: { sourceLanguage: 'auto', targetLanguage: '', autoDetect: true, autoTranslate: true, provider: 'auto' },
+  clipboard: { enabled: true, capture: true, maxItems: 200 },
+  notes: { enabled: true, autosave: true },
+  quickSettings: { enabled: true, compactStatus: true, controls: { wifi: true, bluetooth: true, airplane: true, doNotDisturb: true, battery: true, microphone: true, brightness: true, nightLight: true, theme: true, volume: true } },
+  systemMonitor: { enabled: true, intervalMs: 1000, graphHistorySeconds: 60, processMonitoring: true, processCount: 5, sort: 'cpu', compactMetric: 'cpu', alertsEnabled: false, cpuThreshold: 95, ramThreshold: 90, metrics: { cpu: true, ram: true, gpu: true, disk: true, temperature: true, network: true } }
 };
 
 let win = null;
@@ -167,7 +171,7 @@ if (!gotLock) {
     // Game fullscreen sering merebut urutan paling atas; tegaskan lagi posisi island tiap detik
     setInterval(() => {
       // Jangan ganggu window saat sedang dipakai mengetik
-      if (win && !win.isDestroyed() && win.isVisible() && !win.isFocused()) { win.setAlwaysOnTop(true, 'screen-saver'); win.moveTop(); }
+      if (win && !win.isDestroyed() && win.isVisible() && !win.isFocused() && (!settingsWin || settingsWin.isDestroyed())) { win.setAlwaysOnTop(true, 'screen-saver'); win.moveTop(); }
     }, 1000);
     helper.start((msg) => {
       if (msg && msg.type === 'audio') {
@@ -182,9 +186,12 @@ if (!gotLock) {
         broadcast('windows-notifications:status', msg);
       }
       if (win && !win.isDestroyed()) win.webContents.send('helper:msg', msg);
-    });
+    }, app.getPath('userData'));
     helper.send({ cmd: 'windows-notifications', enabled: settings.notif?.captureWindows !== false });
     helper.send({ cmd: 'copy-text-config', enabled: settings.copyText?.enabled !== false, language: settings.copyText?.language || '' });
+    helper.send({ cmd: 'companion-init' });
+    helper.send({ cmd: 'clipboard-config', enabled: settings.clipboard?.enabled !== false, capture: settings.clipboard?.capture !== false, maxItems: settings.clipboard?.maxItems || 200 });
+    helper.send({ cmd: 'system-monitor-config', mode: 'hidden', activeTab: '', intervalMs: settings.systemMonitor?.intervalMs || 1000, processCount: settings.systemMonitor?.processCount || 5, processMonitoring: settings.systemMonitor?.processMonitoring !== false, sort: settings.systemMonitor?.sort || 'cpu', compactMetric: settings.systemMonitor?.compactMetric || 'cpu', metrics: settings.systemMonitor?.metrics || {}, alertsEnabled: settings.systemMonitor?.alertsEnabled === true, cpuThreshold: settings.systemMonitor?.cpuThreshold || 95, ramThreshold: settings.systemMonitor?.ramThreshold || 90 });
     screen.on('display-metrics-changed', placeWindow);
     screen.on('display-added', placeWindow);
     screen.on('display-removed', placeWindow);
@@ -282,12 +289,31 @@ function openSettings(page) {
   settingsWin = new BrowserWindow({
     width: 980, height: 680, minWidth: 780, minHeight: 520,
     frame: false, transparent: true, backgroundColor: '#00000000', // bilah judul dibuat sendiri (gaya macOS)
-    title: 'Pengaturan Dynamis Island', autoHideMenuBar: true,
+    title: 'Pengaturan Dynamis Island', autoHideMenuBar: true, show: false,
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false }
   });
+  // Island normally sits at the screen-saver topmost level. Lower it while
+  // Settings is open so it cannot cover the separate configuration window.
+  if (win && !win.isDestroyed()) win.setAlwaysOnTop(false);
   settingsWin.setMenuBarVisibility(false);
-  settingsWin.loadFile(path.join(__dirname, 'settings-window', 'index.html'), page ? { hash: page } : undefined);
-  settingsWin.on('closed', () => { settingsWin = null; });
+  settingsWin.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    if (level >= 2) console.error(`[settings renderer] ${message} (${sourceId}:${line})`);
+  });
+  settingsWin.webContents.on('did-fail-load', (_event, code, description, url) => {
+    console.error(`[settings window] failed to load ${url}: ${description} (${code})`);
+  });
+  settingsWin.once('ready-to-show', () => {
+    if (!settingsWin || settingsWin.isDestroyed()) return;
+    settingsWin.show();
+    settingsWin.focus();
+  });
+  settingsWin.loadFile(path.join(__dirname, 'settings-window', 'index.html'), page ? { hash: page } : undefined).catch((error) => {
+    console.error('[settings window] load failed:', error);
+  });
+  settingsWin.on('closed', () => {
+    settingsWin = null;
+    if (win && !win.isDestroyed()) { win.setAlwaysOnTop(true, 'screen-saver'); win.moveTop(); }
+  });
 }
 
 // ---------- IPC ----------
@@ -315,6 +341,8 @@ ipcMain.handle('settings:set', (_e, patch) => {
   if (patch.copyText) {
     helper.send({ cmd: 'copy-text-config', enabled: settings.copyText.enabled !== false, language: settings.copyText.language || '' });
   }
+  if (patch.clipboard) helper.send({ cmd: 'clipboard-config', enabled: settings.clipboard?.enabled !== false, capture: settings.clipboard?.capture !== false, maxItems: settings.clipboard?.maxItems || 200 });
+  if (patch.systemMonitor) helper.send({ cmd: 'system-monitor-config', intervalMs: settings.systemMonitor.intervalMs, processCount: settings.systemMonitor.processCount, processMonitoring: settings.systemMonitor.processMonitoring, sort: settings.systemMonitor.sort, compactMetric: settings.systemMonitor.compactMetric, metrics: settings.systemMonitor.metrics, alertsEnabled: settings.systemMonitor.alertsEnabled, cpuThreshold: settings.systemMonitor.cpuThreshold, ramThreshold: settings.systemMonitor.ramThreshold });
   return settings;
 });
 
@@ -336,6 +364,16 @@ ipcMain.on('settings:win', (e, action) => {
   else if (action === 'max') (w.isMaximized() ? w.unmaximize() : w.maximize());
 }); // hapus semua disiarkan ke island
 ipcMain.handle('app:info', () => ({ version: app.getVersion(), dataDir: app.getPath('userData') }));
+ipcMain.handle('app:check-updates', async () => {
+  if (!app.isPackaged) return { ok: false, message: 'Updates are available in the installed app.' };
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    return { ok: true, message: result?.updateInfo?.version && result.updateInfo.version !== app.getVersion() ? `Update ${result.updateInfo.version} found; downloading.` : 'You are up to date.' };
+  } catch (error) {
+    console.error('[updater] Manual update check failed:', error.message);
+    return { ok: false, message: 'Could not check for updates. Try again later.' };
+  }
+});
 ipcMain.on('app:open-data', () => shell.openPath(app.getPath('userData')));
 
 ipcMain.on('helper:send', (_e, obj) => helper.send(obj));

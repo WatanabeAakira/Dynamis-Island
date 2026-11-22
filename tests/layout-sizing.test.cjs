@@ -35,6 +35,8 @@ test('feature sizing starts at the reviewed targets and clamps requests', async 
   assert.equal(module.preferredExpandedHeight('translate'), 330);
   assert.equal(module.preferredExpandedHeight('timer', 'alarm-edit'), 300);
   assert.equal(module.preferredExpandedHeight('notif', '', 400), 360);
+  assert.equal(module.preferredExpandedHeight('quick-settings'), 260);
+  assert.equal(module.preferredExpandedHeight('system-monitor'), 260);
   assert.equal(module.preferredExpandedHeight('unknown'), 260);
 });
 
@@ -42,9 +44,13 @@ test('sizing remains a renderer concern and global expanded width is retained', 
   const css = await readFile(path.join(__dirname, '../src/renderer/styles.css'), 'utf8');
   const app = await readFile(path.join(__dirname, '../src/renderer/app.js'), 'utf8');
   const audio = await readFile(path.join(__dirname, '../src/renderer/audio-view.js'), 'utf8');
+  const quickSettings = await readFile(path.join(__dirname, '../src/renderer/quick-settings-view.js'), 'utf8');
+  const systemMonitor = await readFile(path.join(__dirname, '../src/renderer/system-monitor-view.js'), 'utf8');
   assert.match(css, /#island\[data-mode="expanded"\]\s*\{[^}]*--w:\s*650px;[^}]*--h:\s*260px;/s);
   assert.doesNotMatch(css, /#island\[data-mode="expanded"\]\[data-tab="(?:audio|copy-text|translate)"\]\s*\{[^}]*--w:/s);
   assert.match(css, /#island\[data-mode="hover"\].*--h:\s*46px/);
+  assert.match(css, /#island\[data-mode="expanded"\] \.content\s*\{[^}]*pointer-events:\s*auto/s);
+  assert.doesNotMatch(css, /#island\[data-mode="expanded"\]\[data-content-ready="true"\] \.content\s*\{[^}]*pointer-events:\s*auto/s);
   assert.match(css, /tab-more-menu/);
   assert.match(css, /\.au-list[^\n]*overflow-y:\s*auto/);
   assert.match(css, /\.au-row \{[^}]*height:\s*38px/s);
@@ -52,4 +58,8 @@ test('sizing remains a renderer concern and global expanded width is retained', 
   assert.match(css, /\.ai-log[^\n]*overflow-y:\s*auto/);
   assert.match(app, /island:layoutrequest/);
   assert.match(audio, /el\.className = 'au-row'/);
+  assert.match(app, /'quick-settings': renderQuickSettings/);
+  assert.match(app, /'system-monitor': renderSystemMonitor/);
+  assert.doesNotMatch(quickSettings, /--(?:w|h)\s*:/);
+  assert.doesNotMatch(systemMonitor, /--(?:w|h)\s*:/);
 });

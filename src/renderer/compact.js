@@ -16,6 +16,7 @@ const esc = (t) => String(t).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '
 
 let kind = null; // 'files' | 'apps' | 'audio' | 'translate' | null
 let count = 0, variant = 'outline', apps = [], A = { ...APPS_DEFAULTS };
+let monitorSnapshot=null,quickSnapshot=null,Q={compactStatus:true},SM={compactMetric:'cpu'};
 let translationCompact = { processing: false, source: '', target: '', result: false };
 
 function shown() {
@@ -94,25 +95,33 @@ function sync() {
   const onApps = kind === 'apps' && apps.length > 0;
   const onAudio_ = kind === 'audio' && !!audio.master;
   const onTranslate = kind === 'translate';
+  const onQuick = kind === 'quick-settings';
+  const onMonitor = kind === 'system-monitor';
   const unread = unreadCount();
   const timing = !!document.getElementById('pill')?.classList.contains('timing');
   const collapsed = island.dataset.mode === 'collapsed';
-  const onNotif = !onFiles && !onApps && !onAudio_ && collapsed && unread > 0 && !timing;
+  const onNotif = !onFiles && !onApps && !onAudio_ && !onTranslate && !onQuick && !onMonitor && collapsed && unread > 0 && !timing;
   island.classList.toggle('cmp-files', onFiles);
   island.classList.toggle('cmp-apps', onApps);
   island.classList.toggle('cmp-audio', onAudio_);
   island.classList.toggle('cmp-notif', onNotif);
   island.classList.toggle('cmp-translate', onTranslate);
+  island.classList.toggle('cmp-quick-settings', onQuick);
+  island.classList.toggle('cmp-system-monitor', onMonitor);
   cmp.classList.toggle('apps', onApps);
   cmp.classList.toggle('audio', onAudio_);
   cmp.classList.toggle('notif', onNotif);
+  cmp.classList.toggle('quick-settings',onQuick);
+  cmp.classList.toggle('system-monitor',onMonitor);
   if (onFiles) {
     cmp.innerHTML = `<span class="cp-ico">${compactIcon(variant)}</span><b>${count}</b><i class="cp-sep"></i><span class="cp-chev">${CHEV}</span>`;
   } else if (onApps) renderApps();
   else if (onAudio_) renderAudio();
   else if (onNotif) renderNotif(unread);
   else if (onTranslate) renderTranslate();
-  cmp.hidden = !(onFiles || onApps || onAudio_ || onNotif || onTranslate);
+  else if (onQuick) cmp.innerHTML = `<span class="cq-ico">${svg('<path d="M4 7h7m4 0h5M4 17h3m4 0h9"/><circle cx="13" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>')}</span><b>Quick Settings</b>${Q.compactStatus&&quickSnapshot?`<small>${quickSnapshot.wifiConnected?'Wi-Fi':quickSnapshot.bluetoothEnabled?'Bluetooth':'Ready'}</small>`:''}`;
+  else if (onMonitor) { const ram=SM.compactMetric==='ram';const v=ram?monitorSnapshot?.memoryPercent:monitorSnapshot?.cpuPercent;cmp.innerHTML = `<span class="cm-ico">${svg('<path d="M2 13h4l3-8 5 14 3-8h5"/>')}</span><b>${ram?'RAM':'CPU'} ${v==null?'—':`${Math.round(v)}%`}</b>`; }
+  cmp.hidden = !(onFiles || onApps || onAudio_ || onNotif || onTranslate || onQuick || onMonitor);
   watch('compact-audio', kind === 'audio' ? 'master' : 'off', cmp);
   // Ikon berdenyut sebentar setelah notifikasi baru masuk
   clearTimeout(pulseTimer);
@@ -125,12 +134,14 @@ async function refreshApps() { try { apps = await window.api.appsList(); } catch
 function readSettings(s) {
   variant = ((s && s.tray) || {}).compactIcon || 'outline';
   A = { ...APPS_DEFAULTS, ...((s && s.apps) || {}) };
+  Q = { compactStatus: s?.quickSettings?.compactStatus !== false };
+  SM = { compactMetric: s?.systemMonitor?.compactMetric === 'ram' ? 'ram' : 'cpu' };
 }
 
 document.addEventListener('island:modechange', (e) => {
   const d = e.detail;
   const left = d.mode === 'collapsed' && d.reason === 'pointerleave';
-  kind = left && d.tab === 'files' ? 'files' : left && d.tab === 'apps' ? 'apps' : left && d.tab === 'audio' ? 'audio' : left && d.tab === 'translate' ? 'translate' : null;
+  kind = left && d.tab === 'files' ? 'files' : left && d.tab === 'apps' ? 'apps' : left && d.tab === 'audio' ? 'audio' : left && d.tab === 'translate' ? 'translate' : left && d.tab === 'quick-settings' ? 'quick-settings' : left && d.tab === 'system-monitor' ? 'system-monitor' : null;
   if (kind === 'files') refreshTray(); else if (kind === 'apps') refreshApps(); else sync();
 });
 window.api.onDataChanged((d) => {
@@ -140,6 +151,8 @@ window.api.onDataChanged((d) => {
 });
 onAudio(() => { if (kind === 'audio') sync(); });
 onNotifs(() => sync());
+window.addEventListener('quick-settings-state',(e)=>{quickSnapshot=e.detail||null;if(kind==='quick-settings')sync();});
+window.addEventListener('system-monitor:snapshot',(e)=>{monitorSnapshot=e.detail||null;if(kind==='system-monitor')sync();});
 // Pill waktu (timer/fokus/alarm) menandai dirinya dengan kelas 'timing'; pill notifikasi harus mundur saat itu terjadi
 const pillEl = document.getElementById('pill');
 if (pillEl) new MutationObserver(() => sync()).observe(pillEl, { attributes: true, attributeFilter: ['class'] });

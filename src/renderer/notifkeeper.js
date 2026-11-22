@@ -64,6 +64,7 @@ document.addEventListener('island:alert', (e) => {
   const source = d.sub === 'focus' ? 'focus' : d.sub === 'alarm' ? 'alarm' : 'timer';
   addNotif({ source, title: d.title, tab: d.tab || null, sub: d.sub || null });
 });
+document.addEventListener('island:system-alert', (e) => { const d=e.detail||{}; if(d.title) addNotif({source:'system',title:d.title,body:d.body||''}); });
 
 window.api?.onHelper?.((m) => {
   if (m?.type !== 'windows-notification' || !m.title) return;

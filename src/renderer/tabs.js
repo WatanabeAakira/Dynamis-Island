@@ -16,6 +16,10 @@ export const ICONS = {
   ai:       svg('<path d="M11 3.5l1.9 5.6 5.6 1.9-5.6 1.9L11 18.5l-1.9-5.6L3.5 11l5.6-1.9z"/><path d="M19 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>'),
   translate: svg('<path d="M4 6h11M9.5 4v2m4 0c-.6 3.8-3.7 6.7-7.5 8m1-5c1 2 2.8 3.7 5 4.7M14 20l3.5-8 3.5 8m-5.8-2.8h4.6"/><path d="M17 4l3 3m0-3-3 3"/>'),
   'copy-text': svg('<rect x="3.5" y="5" width="17" height="14" rx="3"/><path d="M8 9h8M8 12h8M8 15h5"/>'),
+  clipboard: svg('<rect x="6" y="4.5" width="12" height="17" rx="2"/><path d="M9 4.5v-2h6v2M9 9h6M9 13h6M9 17h4"/>'),
+  notes: svg('<path d="M5 3h14a2 2 0 0 1 2 2v14l-4 3H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM17 22v-4h4M7 8h10M7 12h10M7 16h6"/>'),
+  'quick-settings': svg('<path d="M12 2.5l1.2 2.8 3 .3.8 2.9 2.7 1.4-.5 3 1.8 2.4-1.8 2.4.5 3-2.7 1.4-.8 2.9-3 .3-1.2 2.8-2.8-1.2-2.8 1.2-1.2-2.8-3-.3-.8-2.9-2.7-1.4.5-3L0 12l1.8-2.4-.5-3L4 5.2l.8-2.9 3-.3L9 0z" transform="translate(2 1) scale(.83)"/><circle cx="12" cy="12" r="3"/>'),
+  'system-monitor': svg('<path d="M2 13h4l3-8 5 14 3-8h5"/>'),
   settings: svg('<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/>')
 };
 
@@ -32,7 +36,11 @@ export const TABS = [
   { id: 'apps',     title: 'Shortcut Aplikasi',      stage: 7, hint: 'Buka aplikasi favorit dengan satu klik' },
   { id: 'ai',       title: 'AI',                     stage: 9, hint: 'Asisten Groq yang bisa mengontrol island' },
   { id: 'copy-text', title: 'Copy Text From Anything', stage: 10, hint: 'Pilih area layar lalu salin teks hasil OCR secara lokal' },
-  { id: 'translate', title: 'Translate Anything', stage: 11, hint: 'Terjemahkan teks, gambar, atau area layar berdampingan' }
+  { id: 'translate', title: 'Translate Anything', stage: 11, hint: 'Terjemahkan teks, gambar, atau area layar berdampingan' },
+  { id: 'clipboard', title: 'Clipboard Manager', stage: 12, hint: 'Riwayat clipboard lokal untuk teks, gambar, link, dan file' },
+  { id: 'notes', title: 'Quick Notes', stage: 12, hint: 'Catatan cepat tersimpan lokal dan otomatis' },
+  { id: 'quick-settings', title: 'Quick Settings', stage: 13, hint: 'Kontrol cepat dengan status dan tautan Windows Settings' },
+  { id: 'system-monitor', title: 'System Monitor', stage: 13, hint: 'Metrik PC real-time dan proses teratas' }
 ];
 
 export function renderPlaceholder(container, tab) {

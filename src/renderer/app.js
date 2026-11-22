@@ -11,9 +11,13 @@ import { renderAudio } from './audio-view.js';
 import { renderFiles } from './tray-view.js';
 import { renderApps } from './apps-view.js';
 import { renderNotif } from './notif-view.js';
-import { renderAi } from './ai-view.js';
+import { renderAi, sendAiText } from './ai-view.js';
 import { renderCopyText } from './copy-text-view.js';
-import { renderTranslate } from './translate-view.js';
+import { renderTranslate, setTranslateText } from './translate-view.js';
+import { renderClipboard } from './clipboard-view.js';
+import { renderNotes } from './notes-view.js';
+import { renderQuickSettings } from './quick-settings-view.js';
+import { renderSystemMonitor } from './system-monitor-view.js';
 import { setNotifLimit } from './notifkeeper.js';
 import { setNoticeMs } from './toast.js';
 import './compact.js';
@@ -23,7 +27,7 @@ import { getLanguage, localizeTree, setLanguage, tr, watchLocale } from './local
 import { EXPANDED_HEIGHT, preferredExpandedHeight } from './layout-sizing.js';
 
 // Tab yang sudah punya tampilan sendiri (selain media dan pengaturan). Tab baru cukup ditambah di sini.
-const VIEWS = { clock: renderClock, timer: renderTimeTab, calendar: renderCalendar, weather: renderWeather, audio: renderAudio, files: renderFiles, apps: renderApps, notif: renderNotif, ai: renderAi, 'copy-text': renderCopyText, translate: renderTranslate };
+const VIEWS = { clock: renderClock, timer: renderTimeTab, calendar: renderCalendar, weather: renderWeather, audio: renderAudio, files: renderFiles, apps: renderApps, notif: renderNotif, ai: renderAi, 'copy-text': renderCopyText, translate: renderTranslate, clipboard: renderClipboard, notes: renderNotes, 'quick-settings': renderQuickSettings, 'system-monitor': renderSystemMonitor };
 import { setAccentSettings } from './palette.js';
 
 const island  = document.getElementById('island');
@@ -55,6 +59,7 @@ function applySettings(s) {
   setLyricsOffset(s.lyricsOffset || 0);
   setToastEnabled(s.trackToast !== false);
   setNoticeMs(((s.notif && s.notif.noticeMs) || 7000));
+  if (tabbar.childElementCount) buildTabbar();
   setNotifLimit((s.notif && s.notif.historyLimit) || 50);
 }
 
@@ -162,10 +167,11 @@ function setPinned(value) {
 // ---------- Tab bar ----------
 function buildTabbar() {
   const language = settings.language === 'en' ? 'en' : 'id';
+  const availableTabs = TABS.filter((t) => t.id !== 'clipboard' || settings.clipboard?.enabled !== false).filter((t) => t.id !== 'notes' || settings.notes?.enabled !== false).filter((t) => t.id !== 'quick-settings' || settings.quickSettings?.enabled !== false).filter((t) => t.id !== 'system-monitor' || settings.systemMonitor?.enabled !== false);
   const btn = (id, title) =>
     `<button class="tab-btn" data-tab="${id}" title="${tr(title, language)}" aria-label="${tr(title, language)}">${ICONS[id]}</button>`;
   tabbar.innerHTML =
-    TABS.map(t => btn(t.id, t.title)).join('') +
+    availableTabs.map(t => btn(t.id, t.title)).join('') +
     '<button class="tab-btn more-btn" data-action="more" aria-expanded="false" aria-label="Lainnya" title="Lainnya"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></button>' +
     '<div class="tab-sep"></div>' +
     btn('settings', 'Pengaturan') +
@@ -175,7 +181,7 @@ function buildTabbar() {
   menu.id = 'tab-more-menu';
   menu.setAttribute('role', 'group');
   menu.setAttribute('aria-label', tr('Lainnya', language));
-  menu.innerHTML = TABS.map(t => `<button class="more-entry" data-tab="${t.id}" title="${tr(t.title, language)}">${ICONS[t.id]}<span>${tr(t.title, language)}</span></button>`).join('');
+  menu.innerHTML = availableTabs.map(t => `<button class="more-entry" data-tab="${t.id}" title="${tr(t.title, language)}">${ICONS[t.id]}<span>${tr(t.title, language)}</span></button>`).join('');
   tabbar.append(menu);
   refreshHoverNavigation();
 }
@@ -411,6 +417,11 @@ window.api.onHover((inside) => {
 
 window.api.onHelper((msg) => {
   if (!msg) return;
+  if (msg.type === 'clipboard-history' || msg.type === 'quick-notes') window.dispatchEvent(new CustomEvent(`companion:${msg.type}`, { detail: msg.items || [] }));
+  if (msg.type === 'quick-settings-state' || msg.type === 'quick-settings-error') window.dispatchEvent(new CustomEvent(msg.type, { detail: msg.state || msg }));
+  if (msg.type === 'system-monitor-snapshot') window.dispatchEvent(new CustomEvent('system-monitor:snapshot', { detail: msg.snapshot }));
+  if (msg.type === 'system-monitor-error' || msg.type === 'backend-error') window.dispatchEvent(new CustomEvent('system-monitor:error', { detail: msg }));
+  if (msg.type === 'system-monitor-alert') document.dispatchEvent(new CustomEvent('island:system-alert', { detail: msg }));
   if (msg.type === 'translate-open') {
     if (activeTab !== 'translate') {
       activeTab = 'translate';
@@ -437,6 +448,8 @@ window.api.onHelper((msg) => {
   fullscreenActive = active;
   syncFullscreenMode(active ? 'fullscreen-enter' : 'fullscreen-exit');
 });
+window.addEventListener('companion:ai', (event) => { activeTab='ai'; markActive(); renderActive(); setMode('expanded','companion-ai'); setTimeout(()=>sendAiText(event.detail),0); });
+window.addEventListener('companion:translate', (event) => { activeTab='translate'; markActive(); renderActive(); setMode('expanded','companion-translate'); setTimeout(()=>setTranslateText(event.detail),0); });
 
 // Tray dapat menyembunyikan window saat hover/click-through sedang aktif.
 // Saat ditampilkan lagi, mulai dari state bersih supaya klik tab berikutnya diproses.

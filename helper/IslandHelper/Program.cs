@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.IO;
 using Windows.Devices.Geolocation;
 using Windows.Media;
 using Windows.Media.Control;
@@ -24,6 +25,9 @@ static class Program
     static int fullscreenCandidateCount;
     static WindowsNotificationCapture? notificationCapture;
     static CopyTextService? copyText;
+    static DesktopCompanion? companion;
+    static QuickSettingsService? quickSettings;
+    static SystemMonitorService? systemMonitor;
 
     static string SessionId(GlobalSystemMediaTransportControlsSession s) => s.SourceAppUserModelId ?? "";
 
@@ -34,6 +38,10 @@ static class Program
         catch (Exception ex) { Send(new { type = "windows-notifications-status", enabled = false, available = false, error = ex.Message }); }
         copyText = new CopyTextService(Send);
         copyText.Start();
+        companion = new DesktopCompanion(Send, args.Length > 0 ? args[0] : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Dynamis Island"));
+        companion.Start();
+        quickSettings = new QuickSettingsService(Send); quickSettings.Start();
+        systemMonitor = new SystemMonitorService(Send);
         if (args.Contains("--notification-capture-test", StringComparer.OrdinalIgnoreCase))
         {
             await ReadCommands();
@@ -270,9 +278,12 @@ static class Program
         string? line;
         while ((line = Console.In.ReadLine()) != null)
         {
-            try { await Handle(line); } catch { }
+            try { await Handle(line); } catch (Exception ex) { Send(new { type="backend-error", message=ex.Message }); }
         }
         copyText?.Stop();
+        companion?.Dispose();
+        quickSettings?.Dispose();
+        systemMonitor?.Dispose();
         Environment.Exit(0); // Electron menutup stdin -> helper ikut berhenti
     }
 
@@ -286,6 +297,9 @@ static class Program
             if (notificationCapture == null) Send(new { type = "windows-notifications-status", enabled = false, available = false });
             return;
         }
+        if (cmd != null && (cmd.StartsWith("companion-") || cmd.StartsWith("clipboard-") || cmd.StartsWith("notes-"))) { companion?.Handle(doc.RootElement); return; }
+        if (cmd != null && cmd.StartsWith("quick-settings-")) { if (quickSettings != null) await quickSettings.Handle(cmd, doc.RootElement); return; }
+        if (cmd == "system-monitor-config") { systemMonitor?.Configure(doc.RootElement); return; }
         if (cmd == "copy-text-config")
         {
             var enable = doc.RootElement.TryGetProperty("enabled", out var enabled) && enabled.GetBoolean();
