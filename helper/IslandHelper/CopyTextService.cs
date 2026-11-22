@@ -21,11 +21,14 @@ internal sealed class CopyTextService
     private readonly Action<object> send;
     private readonly object gate = new();
     private Thread? hotkeyThread;
+    private Dispatcher? wpfDispatcher;
     private HwndSource? hwndSource;
     private IntPtr hotkeyWindow;
+    private bool hotkeyRegistered;
     private bool busy;
     private bool enabled = true;
     private string? languageTag;
+    private string lastText = "";
 
     public CopyTextService(Action<object> send)
     {
@@ -57,6 +60,20 @@ internal sealed class CopyTextService
         SendLanguagesStatus();
     }
 
+    public async Task CopyLastResultAsync()
+    {
+        if (string.IsNullOrWhiteSpace(lastText)) return;
+        try
+        {
+            await ClipboardTask(lastText);
+            send(new { type = "copy-text-status", status = "Text Copied Successfully", ok = true, processing = false, text = lastText, characterCount = lastText.Length });
+        }
+        catch (Exception ex)
+        {
+            send(new { type = "copy-text-status", status = "OCR Failed", ok = false, processing = false, error = ex.Message });
+        }
+    }
+
     public void Stop() => StopHotkey();
 
     private void SendLanguagesStatus()
@@ -71,13 +88,21 @@ internal sealed class CopyTextService
             languages,
             selectedLanguage = languageTag
         });
+        if (!string.IsNullOrWhiteSpace(lastText))
+        {
+            send(new { type = "copy-text-status", status = "Text Copied Successfully", ok = true, processing = false, text = lastText, characterCount = lastText.Length });
+        }
     }
 
     private void StartHotkey()
     {
         lock (gate)
         {
-            if (hotkeyThread != null) return;
+            if (hotkeyThread is { IsAlive: true })
+            {
+                RegisterHotkey();
+                return;
+            }
             hotkeyThread = new Thread(RunHotkeyWindow)
             {
                 IsBackground = true,
@@ -90,22 +115,35 @@ internal sealed class CopyTextService
 
     private void StopHotkey()
     {
-        IntPtr handle;
         lock (gate)
         {
-            handle = hotkeyWindow;
-            hotkeyThread = null;
+            if (hotkeyWindow != IntPtr.Zero && hotkeyRegistered)
+            {
+                UnregisterHotKey(hotkeyWindow, HotkeyId);
+                hotkeyRegistered = false;
+            }
         }
-        if (handle != IntPtr.Zero)
+    }
+
+    private void RegisterHotkey()
+    {
+        if (!enabled || hotkeyWindow == IntPtr.Zero || hotkeyRegistered) return;
+        hotkeyRegistered = RegisterHotKey(hotkeyWindow, HotkeyId, ModAlt | ModControl, 0x54);
+        if (!hotkeyRegistered)
         {
-            UnregisterHotKey(handle, HotkeyId);
-            hwndSource?.Dispose();
-            hotkeyWindow = IntPtr.Zero;
+            send(new
+            {
+                type = "copy-text-status",
+                status = "OCR Failed",
+                ok = false,
+                error = "Ctrl+Alt+T is unavailable because another application may already use it."
+            });
         }
     }
 
     private void RunHotkeyWindow()
     {
+        wpfDispatcher = Dispatcher.CurrentDispatcher;
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         var window = new Window
         {
@@ -123,24 +161,14 @@ internal sealed class CopyTextService
             hotkeyWindow = new WindowInteropHelper(window).Handle;
             hwndSource = HwndSource.FromHwnd(hotkeyWindow);
             hwndSource?.AddHook(WndProc);
-            if (!RegisterHotKey(hotkeyWindow, HotkeyId, ModAlt | ModControl, 0x54))
-            {
-                send(new
-                {
-                    type = "copy-text-status",
-                    status = "OCR Failed",
-                    ok = false,
-                    error = "Ctrl+Alt+T is unavailable because another application may already use it."
-                });
-            }
+            lock (gate) RegisterHotkey();
         };
         window.Closed += (_, _) =>
         {
-            if (hotkeyWindow != IntPtr.Zero)
-            {
-                UnregisterHotKey(hotkeyWindow, HotkeyId);
-                hotkeyWindow = IntPtr.Zero;
-            }
+            StopHotkey();
+            hwndSource?.Dispose();
+            hwndSource = null;
+            hotkeyWindow = IntPtr.Zero;
             app.Shutdown();
         };
         window.Show();
@@ -159,25 +187,43 @@ internal sealed class CopyTextService
 
     private void StartOverlay()
     {
+        Dispatcher? dispatcher;
         lock (gate)
         {
             if (busy) return;
             busy = true;
+            dispatcher = wpfDispatcher;
         }
         send(new { type = "copy-text-status", status = "Select an Area", ok = true, processing = true });
 
-        var thread = new Thread(() =>
+        if (dispatcher == null || dispatcher.HasShutdownStarted || dispatcher.HasShutdownFinished)
         {
-            var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-            var window = new SelectionOverlay(OnSelected, OnCancelled);
-            app.Run(window);
-        })
+            OnCancelled();
+            return;
+        }
+
+        try
         {
-            IsBackground = true,
-            Name = "CopyTextOverlay"
-        };
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
+            dispatcher.BeginInvoke(new Action(() =>
+            {
+                try
+                {
+                    var window = new SelectionOverlay(OnSelected, OnCancelled);
+                    window.Show();
+                    window.Activate();
+                }
+                catch (Exception ex)
+                {
+                    OnCancelled();
+                    send(new { type = "copy-text-status", status = "OCR Failed", ok = false, processing = false, error = ex.Message });
+                }
+            }));
+        }
+        catch (Exception ex)
+        {
+            OnCancelled();
+            send(new { type = "copy-text-status", status = "OCR Failed", ok = false, processing = false, error = ex.Message });
+        }
     }
 
     private void OnCancelled()
@@ -231,9 +277,10 @@ internal sealed class CopyTextService
             }
             else
             {
+                lastText = text;
                 send(new { type = "copy-text-status", status = "Copying to Clipboard", ok = true, processing = true });
                 await ClipboardTask(text);
-                send(new { type = "copy-text-status", status = "Text Copied Successfully", ok = true, processing = false });
+                send(new { type = "copy-text-status", status = "Text Copied Successfully", ok = true, processing = false, text, characterCount = text.Length });
             }
         }
         catch (Exception ex)
@@ -284,6 +331,8 @@ internal sealed class CopyTextService
         try
         {
             if (!BitBlt(memoryDc, 0, 0, width, height, screenDc, rect.Left, rect.Top, CaptureCombine)) return null;
+            // GetDIBits requires the bitmap to be deselected from every device context.
+            SelectObject(memoryDc, oldBitmap);
             var bmi = new BitmapInfoHeader
             {
                 Size = (uint)Marshal.SizeOf<BitmapInfoHeader>(),
@@ -294,8 +343,11 @@ internal sealed class CopyTextService
                 Compression = 0
             };
             var bytes = new byte[checked(width * height * 4)];
-            var result = GetDIBits(memoryDc, bitmap, 0, (uint)height, bytes, ref bmi, 0);
+            var result = GetDIBits(screenDc, bitmap, 0, (uint)height, bytes, ref bmi, 0);
             if (result == 0) return null;
+            // The unused alpha byte from a BI_RGB 32-bit DIB is often zero. Make the
+            // captured pixels opaque before handing them to the premultiplied bitmap.
+            for (var i = 3; i < bytes.Length; i += 4) bytes[i] = byte.MaxValue;
             return bytes;
         }
         finally
@@ -315,6 +367,7 @@ internal sealed class CopyTextService
         private readonly Border selection = new();
         private readonly TextBlock dimensions = new();
         private bool dragging;
+        private bool completed;
         private NativePoint start;
         private System.Windows.Point startDip;
 
@@ -355,14 +408,12 @@ internal sealed class CopyTextService
             {
                 if (e.Key == Key.Escape)
                 {
-                    cancelled();
-                    Close();
+                    Cancel();
                 }
             };
             Closed += (_, _) =>
             {
-                if (dragging) cancelled();
-                Application.Current.Shutdown();
+                if (!completed) cancelled();
             };
         }
 
@@ -399,14 +450,22 @@ internal sealed class CopyTextService
             var height = rect.Bottom - rect.Top;
             if (width >= 2 && height >= 2)
             {
+                completed = true;
                 selected(rect);
                 Close();
             }
             else
             {
-                cancelled();
-                Close();
+                Cancel();
             }
+        }
+
+        private void Cancel()
+        {
+            if (completed) return;
+            completed = true;
+            cancelled();
+            Close();
         }
 
         private void UpdateSelection()
