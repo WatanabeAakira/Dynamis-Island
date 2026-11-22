@@ -14,8 +14,9 @@ const GRID = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" widt
 const APPS_DEFAULTS = { favCount: 4, favFirst: true, compactMode: 'icons', compactLabels: false };
 const esc = (t) => String(t).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 
-let kind = null; // 'files' | 'apps' | 'audio' | null
+let kind = null; // 'files' | 'apps' | 'audio' | 'translate' | null
 let count = 0, variant = 'outline', apps = [], A = { ...APPS_DEFAULTS };
+let translationCompact = { processing: false, source: '', target: '', result: false };
 
 function shown() {
   const list = A.favFirst ? [...apps.filter((x) => x.favorite), ...apps.filter((x) => !x.favorite)] : [...apps];
@@ -76,10 +77,23 @@ function renderNotif(unread) {
   cmp.innerHTML = `<span class="cn-ico${pulse ? ' pulse' : ''}">${svg(BELL)}${pulse ? '<i class="cn-new"></i>' : ''}</span><b>${unread > 99 ? '99+' : unread}</b>`;
 }
 
+function renderTranslate() {
+  if (translationCompact.processing) {
+    cmp.innerHTML = '<span class="ct-spinner" aria-hidden="true"></span><b>Translating</b>';
+  } else if (translationCompact.result) {
+    const source = translationCompact.source.toUpperCase().slice(0, 2) || '??';
+    const target = translationCompact.target.toUpperCase().slice(0, 2) || '??';
+    cmp.innerHTML = `<span class="ct-check" aria-hidden="true">✓</span><b>${source} → ${target}</b>`;
+  } else {
+    cmp.innerHTML = '<span class="ct-icon" aria-hidden="true">文</span>';
+  }
+}
+
 function sync() {
   const onFiles = kind === 'files' && count > 0;
   const onApps = kind === 'apps' && apps.length > 0;
   const onAudio_ = kind === 'audio' && !!audio.master;
+  const onTranslate = kind === 'translate';
   const unread = unreadCount();
   const timing = !!document.getElementById('pill')?.classList.contains('timing');
   const collapsed = island.dataset.mode === 'collapsed';
@@ -88,6 +102,7 @@ function sync() {
   island.classList.toggle('cmp-apps', onApps);
   island.classList.toggle('cmp-audio', onAudio_);
   island.classList.toggle('cmp-notif', onNotif);
+  island.classList.toggle('cmp-translate', onTranslate);
   cmp.classList.toggle('apps', onApps);
   cmp.classList.toggle('audio', onAudio_);
   cmp.classList.toggle('notif', onNotif);
@@ -96,7 +111,8 @@ function sync() {
   } else if (onApps) renderApps();
   else if (onAudio_) renderAudio();
   else if (onNotif) renderNotif(unread);
-  cmp.hidden = !(onFiles || onApps || onAudio_ || onNotif);
+  else if (onTranslate) renderTranslate();
+  cmp.hidden = !(onFiles || onApps || onAudio_ || onNotif || onTranslate);
   watch('compact-audio', kind === 'audio' ? 'master' : 'off', cmp);
   // Ikon berdenyut sebentar setelah notifikasi baru masuk
   clearTimeout(pulseTimer);
@@ -114,7 +130,7 @@ function readSettings(s) {
 document.addEventListener('island:modechange', (e) => {
   const d = e.detail;
   const left = d.mode === 'collapsed' && d.reason === 'pointerleave';
-  kind = left && d.tab === 'files' ? 'files' : left && d.tab === 'apps' ? 'apps' : left && d.tab === 'audio' ? 'audio' : null;
+  kind = left && d.tab === 'files' ? 'files' : left && d.tab === 'apps' ? 'apps' : left && d.tab === 'audio' ? 'audio' : left && d.tab === 'translate' ? 'translate' : null;
   if (kind === 'files') refreshTray(); else if (kind === 'apps') refreshApps(); else sync();
 });
 window.api.onDataChanged((d) => {
@@ -129,6 +145,32 @@ const pillEl = document.getElementById('pill');
 if (pillEl) new MutationObserver(() => sync()).observe(pillEl, { attributes: true, attributeFilter: ['class'] });
 window.api.onSettings((s) => { readSettings(s); sync(); });
 window.api.getSettings().then(readSettings);
+
+window.api.onHelper((message) => {
+  if (!message || !String(message.type || '').startsWith('translate-')) return;
+  if (message.type === 'translate-status') {
+    translationCompact.processing = !!message.processing;
+    if (message.status === 'Translation Completed') translationCompact.result = true;
+    if (message.status === 'Ready to Translate' || message.status === 'No Text Detected') translationCompact.result = false;
+  } else if (message.type === 'translate-input') {
+    translationCompact.processing = true;
+    translationCompact.result = false;
+  }
+  if (kind === 'translate') sync();
+});
+
+window.api.onTranslate((event) => {
+  if (!event) return;
+  if (event.kind === 'status') translationCompact.processing = true;
+  if (event.kind === 'done') {
+    translationCompact.processing = false;
+    translationCompact.result = true;
+    translationCompact.source = event.sourceLanguage || '';
+    translationCompact.target = event.targetLanguage || '';
+  }
+  if (event.kind === 'error') translationCompact.processing = false;
+  if (kind === 'translate') sync();
+});
 
 // Klik ikon favorit langsung membuka aplikasi; tidak ikut membuka island
 cmp.addEventListener('click', (e) => {

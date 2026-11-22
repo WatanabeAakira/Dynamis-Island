@@ -1,4 +1,4 @@
-const { app, BrowserWindow, screen, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, screen, ipcMain, dialog, shell, clipboard } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
@@ -8,6 +8,8 @@ const weather = require('./weather');
 const tray = require('./tray');
 const shortcuts = require('./shortcuts');
 const aiMain = require('./ai-main');
+const translateMain = require('./translate-main');
+const { normalizeLanguage, resolveSystemLanguage } = require('./translate-languages.cjs');
 const trayIcon = require('./tray-icon');
 
 // Ukuran window tetap = ukuran mode terbesar. Animasi dikerjakan di CSS.
@@ -32,7 +34,8 @@ const DEFAULT_SETTINGS = {
   autoFullClosed: true, // sembunyikan island saat aplikasi foreground memenuhi layar
   autoStart: false,
   lyricsDir: '',        // folder file .lrc / .elrc lokal
-  copyText: { enabled: true, language: '' }
+  copyText: { enabled: true, language: '' },
+  translation: { sourceLanguage: 'auto', targetLanguage: '', autoDetect: true, autoTranslate: true, provider: 'groq' }
 };
 
 let win = null;
@@ -291,6 +294,7 @@ function openSettings(page) {
 tray.register(ipcMain, broadcast);
 shortcuts.register(ipcMain, broadcast);
 aiMain.register(ipcMain);
+translateMain.register(ipcMain, { getApiKey: aiMain.getKey });
 ipcMain.on('island:set-ignore', (_e, ignore) => { rendererOver = !ignore; applyIgnore(); });
 ipcMain.on('island:rect', (_e, r) => { islandRect = r; });
 
@@ -336,6 +340,41 @@ ipcMain.on('app:open-data', () => shell.openPath(app.getPath('userData')));
 
 ipcMain.on('helper:send', (_e, obj) => helper.send(obj));
 ipcMain.handle('helper:status', () => helper.status());
+
+ipcMain.handle('translate:defaults', () => ({
+  systemLanguage: resolveSystemLanguage(app.getLocale(), 'id'),
+  maxCharacters: translateMain.MAX_TRANSLATION_CHARACTERS
+}));
+ipcMain.handle('translate:clipboard', () => {
+  const text = clipboard.readText();
+  const characters = translateMain.characterCount(text);
+  if (characters > translateMain.MAX_TRANSLATION_CHARACTERS) {
+    return { ok: false, error: `Clipboard text is too long (${characters.toLocaleString()} characters). Limit: ${translateMain.MAX_TRANSLATION_CHARACTERS.toLocaleString()}. Nothing was cut off.` };
+  }
+  return { ok: true, text };
+});
+ipcMain.handle('translate:copy', (_event, value) => {
+  if (typeof value !== 'string' || !value) return { ok: false };
+  clipboard.writeText(value);
+  return { ok: true };
+});
+ipcMain.handle('translate:pick-image', async (event) => {
+  const owner = BrowserWindow.fromWebContents(event.sender);
+  const result = await dialog.showOpenDialog(owner, {
+    title: 'Choose an image to translate',
+    properties: ['openFile'],
+    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'bmp', 'gif', 'tif', 'tiff'] }]
+  });
+  if (result.canceled || !result.filePaths.length) return { ok: false, cancelled: true };
+  const imagePath = result.filePaths[0];
+  const extension = path.extname(imagePath).toLowerCase();
+  if (!['.png', '.jpg', '.jpeg', '.bmp', '.gif', '.tif', '.tiff'].includes(extension)) return { ok: false, error: 'Unsupported image format.' };
+  let stat;
+  try { stat = fs.statSync(imagePath); } catch { return { ok: false, error: 'The selected image could not be read.' }; }
+  if (!stat.isFile() || stat.size > 20 * 1024 * 1024) return { ok: false, error: 'Image is too large. Choose an image under 20 MB.' };
+  const sent = helper.send({ cmd: 'translate-image', path: imagePath });
+  return sent ? { ok: true } : { ok: false, error: 'The OCR helper is not running. Restart Dynamis Island and retry.' };
+});
 
 ipcMain.handle('lyrics:get', (_e, q) => lyrics.get(q, settings.lyricsDir));
 ipcMain.handle('lyrics:import', (_e, q) => lyrics.importFile(q));

@@ -303,6 +303,17 @@ static class Program
             if (copyText != null) await copyText.CopyLastResultAsync();
             return;
         }
+        if (cmd == "translate-start")
+        {
+            copyText?.StartTranslationSelection();
+            return;
+        }
+        if (cmd == "translate-image")
+        {
+            var imagePath = doc.RootElement.TryGetProperty("path", out var image) ? image.GetString() : null;
+            if (copyText != null) await copyText.TranslateImageAsync(imagePath ?? "");
+            return;
+        }
         if (cmd == "location") { _ = Locate(); return; } // tidak butuh sesi media
         if (cmd != null && cmd.StartsWith("audio-")) { AudioControl.Handle(cmd, doc.RootElement); return; }
         if (cmd == "media-select-session")

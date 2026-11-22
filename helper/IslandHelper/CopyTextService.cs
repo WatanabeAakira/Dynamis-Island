@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.WindowsRuntime;
+using System.IO;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
@@ -10,10 +11,14 @@ using System.Windows.Threading;
 using Windows.Globalization;
 using Windows.Graphics.Imaging;
 using Windows.Media.Ocr;
+using Windows.Storage;
+using Windows.Storage.Streams;
 
 internal sealed class CopyTextService
 {
     private const int HotkeyId = 0x4B10;
+    private const int TranslateHotkeyId = 0x4B11;
+    private const int MaxTranslationCharacters = 10000;
     private const uint ModAlt = 0x0001;
     private const uint ModControl = 0x0002;
     private const uint WmHotkey = 0x0312;
@@ -25,6 +30,7 @@ internal sealed class CopyTextService
     private HwndSource? hwndSource;
     private IntPtr hotkeyWindow;
     private bool hotkeyRegistered;
+    private bool translateHotkeyRegistered;
     private bool busy;
     private bool enabled = true;
     private string? languageTag;
@@ -52,6 +58,52 @@ internal sealed class CopyTextService
             return;
         }
         StartOverlay();
+    }
+
+    public void StartTranslationSelection()
+    {
+        send(new { type = "translate-open" });
+        StartOverlay(translationMode: true);
+    }
+
+    public async Task TranslateImageAsync(string path)
+    {
+        lock (gate)
+        {
+            if (busy)
+            {
+                SendTranslateStatus("Busy", false, "Wait for the current screen selection or OCR to finish.");
+                return;
+            }
+            busy = true;
+        }
+
+        try
+        {
+            SendTranslateStatus("Extracting Text", true);
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) throw new InvalidOperationException("The selected image could not be opened.");
+            if (new FileInfo(path).Length > 20 * 1024 * 1024) throw new InvalidOperationException("Image is too large. Choose an image under 20 MB.");
+            var extension = Path.GetExtension(path).ToLowerInvariant();
+            if (extension is not (".png" or ".jpg" or ".jpeg" or ".bmp" or ".gif" or ".tif" or ".tiff"))
+                throw new InvalidOperationException("This image format is not supported.");
+
+            var file = await StorageFile.GetFileFromPathAsync(path);
+            using var stream = await file.OpenAsync(FileAccessMode.Read);
+            var decoder = await BitmapDecoder.CreateAsync(stream);
+            if (decoder.PixelWidth == 0 || decoder.PixelHeight == 0 || decoder.PixelWidth > 12000 || decoder.PixelHeight > 12000)
+                throw new InvalidOperationException("Image dimensions are not supported.");
+            using var bitmap = await decoder.GetSoftwareBitmapAsync(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
+            var text = await RecognizeTextAsync(bitmap, null);
+            PublishTranslationText(text, "image");
+        }
+        catch (Exception ex)
+        {
+            SendTranslateStatus("Translation Failed", false, ex.Message);
+        }
+        finally
+        {
+            lock (gate) { busy = false; }
+        }
     }
 
     public void Start()
@@ -98,9 +150,10 @@ internal sealed class CopyTextService
     {
         lock (gate)
         {
-            if (hotkeyThread is { IsAlive: true })
+            if (hotkeyThread != null)
             {
-                RegisterHotkey();
+                if (hotkeyThread.IsAlive) RegisterHotkey();
+                else send(new { type = "copy-text-status", status = "OCR Failed", ok = false, error = "The native OCR dispatcher has stopped. Restart Dynamis Island to restore screen selection." });
                 return;
             }
             hotkeyThread = new Thread(RunHotkeyWindow)
@@ -122,22 +175,32 @@ internal sealed class CopyTextService
                 UnregisterHotKey(hotkeyWindow, HotkeyId);
                 hotkeyRegistered = false;
             }
+            if (hotkeyWindow != IntPtr.Zero && translateHotkeyRegistered)
+            {
+                UnregisterHotKey(hotkeyWindow, TranslateHotkeyId);
+                translateHotkeyRegistered = false;
+            }
         }
     }
 
     private void RegisterHotkey()
     {
-        if (!enabled || hotkeyWindow == IntPtr.Zero || hotkeyRegistered) return;
-        hotkeyRegistered = RegisterHotKey(hotkeyWindow, HotkeyId, ModAlt | ModControl, 0x54);
-        if (!hotkeyRegistered)
+        if (hotkeyWindow == IntPtr.Zero) return;
+        if (enabled && !hotkeyRegistered)
         {
-            send(new
+            hotkeyRegistered = RegisterHotKey(hotkeyWindow, HotkeyId, ModAlt | ModControl, 0x54);
+            if (!hotkeyRegistered)
             {
-                type = "copy-text-status",
-                status = "OCR Failed",
-                ok = false,
-                error = "Ctrl+Alt+T is unavailable because another application may already use it."
-            });
+                send(new { type = "copy-text-status", status = "OCR Failed", ok = false, error = "Ctrl+Alt+T is unavailable because another application may already use it." });
+            }
+        }
+        if (!translateHotkeyRegistered)
+        {
+            translateHotkeyRegistered = RegisterHotKey(hotkeyWindow, TranslateHotkeyId, ModAlt | ModControl, 0x59);
+            if (!translateHotkeyRegistered)
+            {
+                send(new { type = "translate-status", status = "Shortcut Unavailable", processing = false, error = "Ctrl+Alt+Y is unavailable because another application may already use it." });
+            }
         }
     }
 
@@ -182,23 +245,34 @@ internal sealed class CopyTextService
             handled = true;
             StartSelection();
         }
+        else if (msg == WmHotkey && wParam.ToInt32() == TranslateHotkeyId)
+        {
+            handled = true;
+            StartTranslationSelection();
+        }
         return IntPtr.Zero;
     }
 
-    private void StartOverlay()
+    private void StartOverlay(bool translationMode = false)
     {
         Dispatcher? dispatcher;
         lock (gate)
         {
-            if (busy) return;
+            if (busy)
+            {
+                if (translationMode) SendTranslateStatus("Busy", false, "Wait for the current screen selection or OCR to finish.");
+                else send(new { type = "copy-text-status", status = "Busy", ok = false, processing = false, error = "Wait for the current screen selection or OCR to finish." });
+                return;
+            }
             busy = true;
             dispatcher = wpfDispatcher;
         }
-        send(new { type = "copy-text-status", status = "Select an Area", ok = true, processing = true });
+        if (translationMode) SendTranslateStatus("Select an Area", true);
+        else send(new { type = "copy-text-status", status = "Select an Area", ok = true, processing = true });
 
         if (dispatcher == null || dispatcher.HasShutdownStarted || dispatcher.HasShutdownFinished)
         {
-            OnCancelled();
+            CancelOverlay(translationMode);
             return;
         }
 
@@ -208,22 +282,54 @@ internal sealed class CopyTextService
             {
                 try
                 {
-                    var window = new SelectionOverlay(OnSelected, OnCancelled);
+                    var selected = new Action<NativeRect>((rect) => _ = ProcessSelectionAsync(rect, translationMode));
+                    var cancelled = new Action(() => CancelOverlay(translationMode));
+                    var window = new SelectionOverlay(selected, cancelled);
                     window.Show();
                     window.Activate();
                 }
                 catch (Exception ex)
                 {
-                    OnCancelled();
-                    send(new { type = "copy-text-status", status = "OCR Failed", ok = false, processing = false, error = ex.Message });
+                    CancelOverlay(translationMode);
+                    if (translationMode) SendTranslateStatus("Translation Failed", false, ex.Message);
+                    else send(new { type = "copy-text-status", status = "OCR Failed", ok = false, processing = false, error = ex.Message });
                 }
             }));
         }
         catch (Exception ex)
         {
-            OnCancelled();
-            send(new { type = "copy-text-status", status = "OCR Failed", ok = false, processing = false, error = ex.Message });
+            CancelOverlay(translationMode);
+            if (translationMode) SendTranslateStatus("Translation Failed", false, ex.Message);
+            else send(new { type = "copy-text-status", status = "OCR Failed", ok = false, processing = false, error = ex.Message });
         }
+    }
+
+    private void CancelOverlay(bool translationMode)
+    {
+        if (translationMode) SendTranslateStatus("Ready to Translate", false);
+        else OnCancelled();
+        lock (gate) { busy = false; }
+    }
+
+    private void SendTranslateStatus(string status, bool processing, string? error = null)
+    {
+        send(new { type = "translate-status", status, processing, error });
+    }
+
+    private void PublishTranslationText(string text, string inputMode)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            SendTranslateStatus("No Text Detected", false, "No readable text was found. Try a clearer or larger area.");
+            return;
+        }
+        var count = text.EnumerateRunes().Count();
+        if (count > MaxTranslationCharacters)
+        {
+            SendTranslateStatus("Text Is Too Long", false, $"OCR found {count:N0} characters. Limit: {MaxTranslationCharacters:N0}. The text was not shortened.");
+            return;
+        }
+        send(new { type = "translate-input", text, inputMode });
     }
 
     private void OnCancelled()
@@ -232,45 +338,28 @@ internal sealed class CopyTextService
         send(new { type = "copy-text-status", status = "Ready to Extract Text", ok = true, processing = false });
     }
 
-    private void OnSelected(NativeRect selection)
-    {
-        _ = ProcessSelectionAsync(selection);
-    }
-
-    private async Task ProcessSelectionAsync(NativeRect selection)
+    private async Task ProcessSelectionAsync(NativeRect selection, bool translationMode = false)
     {
         try
         {
-            send(new { type = "copy-text-status", status = "Capturing Screen", ok = true, processing = true });
+            if (translationMode) SendTranslateStatus("Capturing Screen", true);
+            else send(new { type = "copy-text-status", status = "Capturing Screen", ok = true, processing = true });
             var pixelBytes = Capture(selection, out var width, out var height);
             if (pixelBytes == null || width <= 0 || height <= 0)
             {
                 throw new InvalidOperationException("The selected screen area could not be captured.");
             }
 
-            send(new { type = "copy-text-status", status = "Recognizing Text", ok = true, processing = true });
+            if (translationMode) SendTranslateStatus("Extracting Text", true);
+            else send(new { type = "copy-text-status", status = "Recognizing Text", ok = true, processing = true });
             using var bitmap = new SoftwareBitmap(BitmapPixelFormat.Bgra8, width, height, BitmapAlphaMode.Premultiplied);
             bitmap.CopyFromBuffer(pixelBytes.AsBuffer());
-
-            OcrEngine? engine = null;
-            if (!string.IsNullOrWhiteSpace(languageTag))
+            var text = await RecognizeTextAsync(bitmap, translationMode ? null : languageTag);
+            if (translationMode)
             {
-                var language = new Language(languageTag);
-                if (OcrEngine.IsLanguageSupported(language)) engine = OcrEngine.TryCreateFromLanguage(language);
-                if (engine == null) throw new InvalidOperationException($"OCR language '{languageTag}' is unavailable. Install the corresponding Windows OCR language pack.");
+                PublishTranslationText(text, "screen");
+                return;
             }
-            else
-            {
-                engine = OcrEngine.TryCreateFromUserProfileLanguages();
-            }
-
-            if (engine == null)
-            {
-                throw new InvalidOperationException("No supported Windows OCR language is installed. Install an OCR language pack in Windows settings.");
-            }
-
-            var result = await engine.RecognizeAsync(bitmap);
-            var text = string.Join("\n", result.Lines.Select(line => line.Text)).Trim();
             if (string.IsNullOrWhiteSpace(text))
             {
                 send(new { type = "copy-text-status", status = "No Text Detected", ok = false, processing = false });
@@ -285,12 +374,29 @@ internal sealed class CopyTextService
         }
         catch (Exception ex)
         {
-            send(new { type = "copy-text-status", status = "OCR Failed", ok = false, processing = false, error = ex.Message });
+            if (translationMode) SendTranslateStatus("Translation Failed", false, ex.Message);
+            else send(new { type = "copy-text-status", status = "OCR Failed", ok = false, processing = false, error = ex.Message });
         }
         finally
         {
             lock (gate) { busy = false; }
         }
+    }
+
+    private static async Task<string> RecognizeTextAsync(SoftwareBitmap bitmap, string? preferredLanguageTag)
+    {
+        OcrEngine? engine = null;
+        if (!string.IsNullOrWhiteSpace(preferredLanguageTag))
+        {
+            var language = new Language(preferredLanguageTag);
+            if (OcrEngine.IsLanguageSupported(language)) engine = OcrEngine.TryCreateFromLanguage(language);
+            if (engine == null) throw new InvalidOperationException($"OCR language '{preferredLanguageTag}' is unavailable. Install the corresponding Windows OCR language pack.");
+        }
+        else engine = OcrEngine.TryCreateFromUserProfileLanguages();
+
+        if (engine == null) throw new InvalidOperationException("No supported Windows OCR language is installed. Install an OCR language pack in Windows settings.");
+        var result = await engine.RecognizeAsync(bitmap);
+        return string.Join("\n", result.Lines.Select(line => line.Text)).Trim();
     }
 
     private static Task ClipboardTask(string text)

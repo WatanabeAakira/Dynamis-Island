@@ -108,4 +108,4 @@ function register(ipcMain) {
   ipcMain.on('ai:cancel', (_e, id) => { const c = running.get(id); if (c) c.abort(); });
 }
 
-module.exports = { register, makeSSEParser, hasKey };
+module.exports = { register, makeSSEParser, hasKey, getKey };

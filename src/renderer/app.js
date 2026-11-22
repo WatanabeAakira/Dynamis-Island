@@ -13,6 +13,7 @@ import { renderApps } from './apps-view.js';
 import { renderNotif } from './notif-view.js';
 import { renderAi } from './ai-view.js';
 import { renderCopyText } from './copy-text-view.js';
+import { renderTranslate } from './translate-view.js';
 import { setNotifLimit } from './notifkeeper.js';
 import { setNoticeMs } from './toast.js';
 import './compact.js';
@@ -20,7 +21,7 @@ import { pillInfo, onAnyTimer } from './timekeeper.js';
 import { getLanguage, localizeTree, setLanguage, tr, watchLocale } from './locale.js';
 
 // Tab yang sudah punya tampilan sendiri (selain media dan pengaturan). Tab baru cukup ditambah di sini.
-const VIEWS = { clock: renderClock, timer: renderTimeTab, calendar: renderCalendar, weather: renderWeather, audio: renderAudio, files: renderFiles, apps: renderApps, notif: renderNotif, ai: renderAi, 'copy-text': renderCopyText };
+const VIEWS = { clock: renderClock, timer: renderTimeTab, calendar: renderCalendar, weather: renderWeather, audio: renderAudio, files: renderFiles, apps: renderApps, notif: renderNotif, ai: renderAi, 'copy-text': renderCopyText, translate: renderTranslate };
 import { setAccentSettings } from './palette.js';
 
 const island  = document.getElementById('island');
@@ -335,6 +336,23 @@ window.api.onHover((inside) => {
 
 window.api.onHelper((msg) => {
   if (!msg) return;
+  if (msg.type === 'translate-open') {
+    if (activeTab !== 'translate') {
+      activeTab = 'translate';
+      markActive();
+      renderActive();
+    }
+    if (mode !== 'expanded') setMode('expanded', 'translate-hotkey');
+  }
+  if (msg.type === 'translate-input' || msg.type === 'translate-status') {
+    if (msg.type === 'translate-input' && activeTab !== 'translate') {
+      activeTab = 'translate';
+      markActive();
+      renderActive();
+      if (mode !== 'expanded') setMode('expanded', 'translate-result');
+    }
+    window.dispatchEvent(new CustomEvent('translate:helper', { detail: msg }));
+  }
   if (msg.type === 'copy-text-status') {
     document.querySelector('.tab-btn[data-tab="copy-text"]')?.classList.toggle('processing', !!msg.processing);
   }
@@ -373,6 +391,7 @@ window.api.onSettings((s) => {
   const languageChanged = settings.language !== s.language;
   const autoFullClosedChanged = (settings.autoFullClosed !== false) !== (s.autoFullClosed !== false);
   applySettings(s);
+  window.dispatchEvent(new CustomEvent('island:settings', { detail: s }));
   if (autoFullClosedChanged) syncFullscreenMode('fullscreen-setting');
   if (languageChanged || activeTab === 'clock') {
     buildTabbar();

@@ -409,6 +409,57 @@ function pageAi(root) {
   );
 }
 
+function pageTranslation(root) {
+  const current = { sourceLanguage: 'auto', targetLanguage: '', autoDetect: true, autoTranslate: true, provider: 'groq', ...(S.translation || {}) };
+  const languages = api.translateLanguages || [];
+  const source = h('select', { class: 'sel' });
+  source.append(h('option', { value: 'auto' }, 'Auto-detect'));
+  for (const language of languages) source.append(h('option', { value: language.code }, `${language.name} · ${language.native}`));
+  source.value = current.autoDetect ? 'auto' : current.sourceLanguage;
+
+  const target = h('select', { class: 'sel' });
+  for (const language of languages) target.append(h('option', { value: language.code }, `${language.name} · ${language.native}`));
+  const systemLanguage = api.translateDefaults().then((defaults) => {
+    const localeTarget = defaults?.systemLanguage || 'id';
+    target.value = current.targetLanguage || localeTarget;
+    if (!current.targetLanguage) target.title = `Following Windows display language (${target.value})`;
+  });
+  target.value = current.targetLanguage || 'id';
+
+  const saveTranslation = async (patch) => {
+    const next = { ...current, ...patch };
+    Object.assign(current, next);
+    await save({ translation: next });
+  };
+  const autoDetect = toggle(current.autoDetect, (value) => {
+    void saveTranslation({ autoDetect: value, sourceLanguage: value ? 'auto' : (source.value === 'auto' ? 'en' : source.value) });
+    source.disabled = value;
+    if (!value && source.value === 'auto') source.value = 'en';
+  });
+  source.disabled = current.autoDetect;
+  source.addEventListener('change', () => void saveTranslation({ sourceLanguage: source.value, autoDetect: false }));
+  target.addEventListener('change', () => void saveTranslation({ targetLanguage: target.value }));
+
+  const autoTranslate = toggle(current.autoTranslate, (value) => void saveTranslation({ autoTranslate: value }));
+  const provider = h('select', { class: 'sel' }, h('option', { value: 'groq' }, 'Groq · GPT-OSS 120B'));
+  provider.value = 'groq';
+  provider.addEventListener('change', () => void saveTranslation({ provider: provider.value }));
+  const shortcut = h('code', { class: 'keycap' }, 'Ctrl + Alt + Y');
+
+  root.append(
+    card(
+      row('Automatically detect source language', 'Detect the language as you type. You can turn this off to choose a source language.', autoDetect),
+      row('Source language', 'Used when automatic detection is off.', source),
+      row('Target language', 'Defaults to the Windows display language. Choose another language to keep it as your preference.', target),
+      row('Translate while typing', 'Waits briefly after you stop typing before sending a request.', autoTranslate),
+      row('Translation provider', 'Translation uses Groq over the internet. OCR stays on this device.', provider),
+      row('Screen selection shortcut', 'Select text from anywhere on screen and translate it.', shortcut)
+    ),
+    h('p', { class: 'note' }, 'Only text you enter, paste, or extract from a selected image or screen area is sent to Groq. Screenshots are processed locally and are not uploaded.')
+  );
+  void systemLanguage;
+}
+
 // ---------- Navigasi ----------
 const PAGES = {
   general: { title: 'Umum', desc: 'Pengaturan dasar aplikasi.', icon: IC.general, build: pageGeneral },
@@ -418,18 +469,19 @@ const PAGES = {
   clock: { title: 'Jam', desc: 'Format waktu, tanggal, dan tampilan jam.', icon: IC.clock, build: pageClock },
   apps: { title: 'Pintasan Aplikasi', desc: 'Aplikasi favorit, tampilan, dan perilaku di island.', icon: IC.apps, build: pageApps },
   ai: { title: 'Asisten AI', desc: 'Kunci API Groq, model, dan konteks yang dipakai asisten.', icon: IC.ai, build: pageAi },
+  translation: { title: 'Terjemahan', desc: 'Bahasa, deteksi otomatis, dan cara kerja Translate Anything.', icon: IC.ai, build: pageTranslation },
   notif: { title: 'Notifikasi', desc: 'Durasi banner, riwayat, dan isi pesan notifikasi.', icon: IC.notif, build: pageNotif },
   tray: { title: 'File Tray', desc: 'Tampilan, urutan, dan lencana item di File Tray.', icon: IC.tray, build: pageTray },
   lyrics: { title: 'Lirik', desc: 'Sumber, waktu, dan salinan lirik di tab Media.', icon: IC.lyrics, build: pageLyrics }
 };
 const NAV = [
   { id: 'general' }, { id: 'language' }, { id: 'appearance' }, { id: 'behavior' },
-  { group: 'Fitur', icon: IC.features, kids: ['ai', 'notif', 'apps', 'tray', 'lyrics', 'clock'] }
+  { group: 'Fitur', icon: IC.features, kids: ['ai', 'translation', 'notif', 'apps', 'tray', 'lyrics', 'clock'] }
 ];
 
 // Warna ikon per halaman (gaya ikon sistem macOS)
-const TILE = { general: '#8e8e93', language: '#5e5ce6', appearance: '#0a84ff', behavior: '#ff9f0a', clock: '#0a84ff', ai: '#bf5af2', notif: '#ff453a', apps: '#30b0c7', tray: '#5e5ce6', lyrics: '#ff375f' };
-const SECTIONS = [{ id: 'general' }, { id: 'language' }, { id: 'appearance' }, { id: 'behavior' }, { sec: 'Fitur', ids: ['ai', 'notif', 'apps', 'tray', 'lyrics', 'clock'] }];
+const TILE = { general: '#8e8e93', language: '#5e5ce6', appearance: '#0a84ff', behavior: '#ff9f0a', clock: '#0a84ff', ai: '#bf5af2', translation: '#5d9a73', notif: '#ff453a', apps: '#30b0c7', tray: '#5e5ce6', lyrics: '#ff375f' };
+const SECTIONS = [{ id: 'general' }, { id: 'language' }, { id: 'appearance' }, { id: 'behavior' }, { sec: 'Fitur', ids: ['ai', 'translation', 'notif', 'apps', 'tray', 'lyrics', 'clock'] }];
 
 let current = 'general';
 function show(id) {

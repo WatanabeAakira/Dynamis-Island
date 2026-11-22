@@ -1,4 +1,5 @@
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
+const { LANGUAGES } = require('./translate-languages.cjs');
 
 contextBridge.exposeInMainWorld('api', {
   setIgnoreMouse: (ignore) => ipcRenderer.send('island:set-ignore', ignore),
@@ -73,6 +74,14 @@ contextBridge.exposeInMainWorld('api', {
   aiChat: (req) => ipcRenderer.send('ai:chat', req),
   aiCancel: (id) => ipcRenderer.send('ai:cancel', id),
   onAiEvent: (cb) => { const h = (_e, ev) => cb(ev); ipcRenderer.on('ai:event', h); return () => ipcRenderer.removeListener('ai:event', h); },
+  translateLanguages: LANGUAGES,
+  translateDefaults: () => ipcRenderer.invoke('translate:defaults'),
+  translateClipboard: () => ipcRenderer.invoke('translate:clipboard'),
+  translateCopy: (text) => ipcRenderer.invoke('translate:copy', text),
+  translatePickImage: () => ipcRenderer.invoke('translate:pick-image'),
+  translate: (request) => ipcRenderer.send('translate:request', request),
+  translateCancel: (id) => ipcRenderer.send('translate:cancel', id),
+  onTranslate: (cb) => { const h = (_e, ev) => cb(ev); ipcRenderer.on('translate:event', h); return () => ipcRenderer.removeListener('translate:event', h); },
   openSettings: (page) => ipcRenderer.send('settings:open', page),
   onSettings: (cb) => ipcRenderer.on('settings:changed', (_e, s) => cb(s)),
   onSettingsPage: (cb) => ipcRenderer.on('settings:page', (_e, p) => cb(p)),

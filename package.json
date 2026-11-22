@@ -2,11 +2,12 @@
   "name": "dynamis-island",
   "productName": "Dynamis Island",
   "appId": "com.dynamis.island",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "A Windows dynamic island for media controls, timers, weather, notifications, and productivity tools.",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
+    "test": "node --test tests/*.test.cjs",
     "build:helper": "dotnet publish helper/IslandHelper -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o helper-bin",
     "build:win": "npm run build:helper && electron-builder --win nsis --publish never",
     "release:win": "npm run build:helper && electron-builder --win nsis --publish always"
