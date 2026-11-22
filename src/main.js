@@ -31,7 +31,8 @@ const DEFAULT_SETTINGS = {
   openOnHover: true,    // false = harus klik dulu untuk membuka
   autoFullClosed: true, // sembunyikan island saat aplikasi foreground memenuhi layar
   autoStart: false,
-  lyricsDir: ''         // folder file .lrc / .elrc lokal
+  lyricsDir: '',        // folder file .lrc / .elrc lokal
+  copyText: { enabled: true, language: '' }
 };
 
 let win = null;
@@ -180,6 +181,7 @@ if (!gotLock) {
       if (win && !win.isDestroyed()) win.webContents.send('helper:msg', msg);
     });
     helper.send({ cmd: 'windows-notifications', enabled: settings.notif?.captureWindows !== false });
+    helper.send({ cmd: 'copy-text-config', enabled: settings.copyText?.enabled !== false, language: settings.copyText?.language || '' });
     screen.on('display-metrics-changed', placeWindow);
     screen.on('display-added', placeWindow);
     screen.on('display-removed', placeWindow);
@@ -303,6 +305,9 @@ ipcMain.handle('settings:set', (_e, patch) => {
   broadcast('settings:changed', settings); // island dan window pengaturan ikut diperbarui
   if (patch.notif && Object.prototype.hasOwnProperty.call(patch.notif, 'captureWindows')) {
     helper.send({ cmd: 'windows-notifications', enabled: settings.notif.captureWindows !== false });
+  }
+  if (patch.copyText) {
+    helper.send({ cmd: 'copy-text-config', enabled: settings.copyText.enabled !== false, language: settings.copyText.language || '' });
   }
   return settings;
 });

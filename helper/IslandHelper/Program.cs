@@ -23,6 +23,7 @@ static class Program
     static bool? candidateFullscreen;
     static int fullscreenCandidateCount;
     static WindowsNotificationCapture? notificationCapture;
+    static CopyTextService? copyText;
 
     static string SessionId(GlobalSystemMediaTransportControlsSession s) => s.SourceAppUserModelId ?? "";
 
@@ -31,6 +32,8 @@ static class Program
         Console.OutputEncoding = new System.Text.UTF8Encoding(false);
         try { notificationCapture = new WindowsNotificationCapture(); }
         catch (Exception ex) { Send(new { type = "windows-notifications-status", enabled = false, available = false, error = ex.Message }); }
+        copyText = new CopyTextService(Send);
+        copyText.Start();
         if (args.Contains("--notification-capture-test", StringComparer.OrdinalIgnoreCase))
         {
             await ReadCommands();
@@ -269,6 +272,7 @@ static class Program
         {
             try { await Handle(line); } catch { }
         }
+        copyText?.Stop();
         Environment.Exit(0); // Electron menutup stdin -> helper ikut berhenti
     }
 
@@ -280,6 +284,18 @@ static class Program
         {
             notificationCapture?.SetEnabled(doc.RootElement.TryGetProperty("enabled", out var enabled) && enabled.GetBoolean());
             if (notificationCapture == null) Send(new { type = "windows-notifications-status", enabled = false, available = false });
+            return;
+        }
+        if (cmd == "copy-text-config")
+        {
+            var enable = doc.RootElement.TryGetProperty("enabled", out var enabled) && enabled.GetBoolean();
+            var language = doc.RootElement.TryGetProperty("language", out var lang) ? lang.GetString() : null;
+            copyText?.Configure(enable, language);
+            return;
+        }
+        if (cmd == "copy-text-start")
+        {
+            copyText?.StartSelection();
             return;
         }
         if (cmd == "location") { _ = Locate(); return; } // tidak butuh sesi media

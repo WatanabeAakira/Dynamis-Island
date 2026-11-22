@@ -2,7 +2,7 @@
 
 > A Windows dynamic island for media controls, timers, weather, notifications, and productivity tools.
 
-## Latest release — v0.1.7
+## Latest release — v0.2.0
 
 Menangkap teks toast aplikasi Windows yang diekspos UI Automation dan memasukkannya ke riwayat tab Notifikasi. Pengaturan terpisah sekarang tersambung ke status helper dan jumlah riwayat. Banner toast bawaan Windows tetap dapat muncul.
 
