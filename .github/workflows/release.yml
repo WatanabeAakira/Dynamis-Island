@@ -63,7 +63,7 @@ jobs:
           }
 
           foreach ($asset in @($release.assets)) {
-            if ($asset.name -match '^Dynamis-Island-Setup-.*\.(exe|exe\.blockmap|yml)$') {
+            if ($asset.name -match '^Dynamis-Island-Setup-.*\.(exe|exe\.blockmap)$' -or $asset.name -eq 'latest.yml') {
               Invoke-RestMethod -Uri "$api/assets/$($asset.id)" -Method Delete -Headers $headers
             }
           }
@@ -99,10 +99,21 @@ jobs:
           )
 
           foreach ($asset in $assets) {
-            $path = Resolve-Path -LiteralPath $asset.Path
+            if (-not (Test-Path -LiteralPath $asset.Path)) {
+              throw "Aset hasil build tidak ditemukan: $($asset.Path)"
+            }
+          }
+
+          foreach ($asset in $assets) {
+            $path = (Resolve-Path -LiteralPath $asset.Path).Path
             $name = [IO.Path]::GetFileName($path)
             $encodedName = [Uri]::EscapeDataString($name)
-            Invoke-RestMethod -Uri "$uploadBase`?name=$encodedName" -Method Post -Headers $headers -ContentType $asset.Type -InFile $path
+            Write-Host "Upload aset $name ($((Get-Item -LiteralPath $path).Length) bytes)"
+            try {
+              Invoke-RestMethod -Uri "$uploadBase`?name=$encodedName" -Method Post -Headers $headers -ContentType $asset.Type -InFile $path | Out-Null
+            } catch {
+              throw "Gagal upload aset $name`: $($_.Exception.Message)"
+            }
           }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
