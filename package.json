@@ -8,7 +8,7 @@
   "scripts": {
     "start": "electron .",
     "build:helper": "dotnet publish helper/IslandHelper -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o helper-bin",
-    "build:win": "npm run build:helper && electron-builder --win nsis",
+    "build:win": "npm run build:helper && electron-builder --win nsis --publish never",
     "release:win": "npm run build:helper && electron-builder --win nsis --publish always"
   },
   "devDependencies": {

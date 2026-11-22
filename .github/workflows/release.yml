@@ -74,6 +74,9 @@ jobs:
 
       - name: Build installer Windows
         run: npm run build:win
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload aset GitHub Releases
         shell: pwsh
