@@ -17,8 +17,10 @@ import { renderTranslate } from './translate-view.js';
 import { setNotifLimit } from './notifkeeper.js';
 import { setNoticeMs } from './toast.js';
 import './compact.js';
+import './scrollbars.js';
 import { pillInfo, onAnyTimer } from './timekeeper.js';
 import { getLanguage, localizeTree, setLanguage, tr, watchLocale } from './locale.js';
+import { EXPANDED_HEIGHT, preferredExpandedHeight } from './layout-sizing.js';
 
 // Tab yang sudah punya tampilan sendiri (selain media dan pengaturan). Tab baru cukup ditambah di sini.
 const VIEWS = { clock: renderClock, timer: renderTimeTab, calendar: renderCalendar, weather: renderWeather, audio: renderAudio, files: renderFiles, apps: renderApps, notif: renderNotif, ai: renderAi, 'copy-text': renderCopyText, translate: renderTranslate };
@@ -37,6 +39,8 @@ let leaveTimer = null;
 let contentReadyTimer = null;
 let pointerInside = false;
 let pinnedOpen = false;
+let requestedHeight = null;
+let sizingFrame = 0;
 
 applySettings(settings);
 watchLocale(document.body, () => settings.language);
@@ -53,6 +57,32 @@ function applySettings(s) {
   setNoticeMs(((s.notif && s.notif.noticeMs) || 7000));
   setNotifLimit((s.notif && s.notif.historyLimit) || 50);
 }
+
+function updateExpandedSize() {
+  cancelAnimationFrame(sizingFrame);
+  sizingFrame = requestAnimationFrame(() => {
+    const sub = island.dataset.sub || '';
+    if (mode !== 'expanded') {
+      island.style.removeProperty('--h');
+      return;
+    }
+    const height = preferredExpandedHeight(activeTab, sub, requestedHeight);
+    if (island.style.getPropertyValue('--h') === `${height}px`) return;
+    island.style.setProperty('--h', `${height}px`);
+  });
+}
+document.addEventListener('island:layoutrequest', (event) => {
+  const detail = event.detail || {};
+  requestedHeight = detail.height != null && Number.isFinite(Number(detail.height)) ? Number(detail.height) : null;
+  updateExpandedSize();
+});
+new MutationObserver(() => {
+  requestedHeight = null;
+  updateExpandedSize();
+}).observe(island, { attributes: true, attributeFilter: ['data-tab', 'data-sub'] });
+new MutationObserver(() => {
+  if (mode === 'expanded') updateExpandedSize();
+}).observe(content, { childList: true, subtree: true, characterData: true });
 
 function scheduleContentReady() {
   clearTimeout(contentReadyTimer);
@@ -82,6 +112,7 @@ function setMode(next, reason) {
   const prev = mode;
   mode = next;
   island.dataset.mode = next;
+  updateExpandedSize();
   // Tunggu sampai resize Island dan fade-in panel selesai sebelum kontrol menerima klik.
   scheduleContentReady();
   document.dispatchEvent(new CustomEvent('island:modechange', { detail: { mode: next, prev, reason, tab: activeTab } }));
@@ -135,11 +166,31 @@ function buildTabbar() {
     `<button class="tab-btn" data-tab="${id}" title="${tr(title, language)}" aria-label="${tr(title, language)}">${ICONS[id]}</button>`;
   tabbar.innerHTML =
     TABS.map(t => btn(t.id, t.title)).join('') +
+    '<button class="tab-btn more-btn" data-action="more" aria-expanded="false" aria-label="Lainnya" title="Lainnya"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></button>' +
     '<div class="tab-sep"></div>' +
     btn('settings', 'Pengaturan') +
     '<button class="tab-btn pin-btn" data-action="pin" aria-label="Pin island tetap terbuka" aria-pressed="false" title="Pin island tetap terbuka"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6l-1 5 3 3v2H7v-2l3-3zM12 14v6"/></svg></button>';
+  const menu = document.createElement('div');
+  menu.className = 'tab-more-menu';
+  menu.id = 'tab-more-menu';
+  menu.setAttribute('role', 'group');
+  menu.setAttribute('aria-label', tr('Lainnya', language));
+  menu.innerHTML = TABS.map(t => `<button class="more-entry" data-tab="${t.id}" title="${tr(t.title, language)}">${ICONS[t.id]}<span>${tr(t.title, language)}</span></button>`).join('');
+  tabbar.append(menu);
+  refreshHoverNavigation();
 }
 buildTabbar();
+function refreshHoverNavigation() {
+  const primary = new Set(['media', 'timer', 'calendar', 'clock']);
+  tabbar.querySelectorAll('.tab-btn[data-tab]').forEach((button) => {
+    const overflow = !primary.has(button.dataset.tab);
+    button.dataset.overflow = String(overflow);
+  });
+  const menu = tabbar.querySelector('.tab-more-menu');
+  if (menu) menu.querySelectorAll('.more-entry').forEach((button) => {
+    button.classList.toggle('active', button.dataset.tab === activeTab);
+  });
+}
 function refreshTabbarOverflow() {
   const hasOverflow = tabbar.scrollWidth > tabbar.clientWidth + 1;
   tabbar.classList.toggle('has-overflow', hasOverflow);
@@ -155,6 +206,7 @@ tabbar.addEventListener('wheel', (event) => {
 }, { passive: false });
 
 function selectTab(id) {
+  island.removeAttribute('data-more-open');
   // Klik tab yang sedang terbuka = kembali ke bar saja
   if (mode === 'expanded' && id === activeTab) {
     activeTab = null;
@@ -172,6 +224,7 @@ function markActive() {
   island.dataset.tab = activeTab || '';
   island.dataset.sub = '';
   tabbar.querySelectorAll('.tab-btn[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === activeTab));
+  refreshHoverNavigation();
 }
 
 function renderActive() {
@@ -193,11 +246,20 @@ function renderActive() {
 }
 
 tabbar.addEventListener('click', (e) => {
+  const more = e.target.closest('[data-action="more"]');
+  if (more) {
+    const open = island.dataset.moreOpen !== 'true';
+    island.dataset.moreOpen = String(open);
+    more.setAttribute('aria-expanded', String(open));
+    return;
+  }
   const b = e.target.closest('.tab-btn');
-  if (!b) return;
-  if (b.dataset.action === 'pin') { setPinned(!pinnedOpen); return; }
+  const menuButton = e.target.closest('.more-entry');
+  if (!b && !menuButton) return;
+  const actionButton = b || menuButton;
+  if (actionButton.dataset.action === 'pin') { setPinned(!pinnedOpen); return; }
   // Pengaturan dibuka di window terpisah; island hanya untuk melakukan sesuatu
-  if (b.dataset.tab === 'settings') window.api.openSettings(); else selectTab(b.dataset.tab);
+  if (actionButton.dataset.tab === 'settings') window.api.openSettings(); else selectTab(actionButton.dataset.tab);
 });
 
 // ---------- Pointer: buka saat masuk, tutup saat keluar ----------
