@@ -141,7 +141,7 @@ export function renderAudio(c) {
   // ---------- Baris aplikasi ----------
   function makeRow(g) {
     const el = document.createElement('div');
-    el.className = 'ar';
+    el.className = 'au-row';
     el.dataset.key = g.key;
     el.innerHTML = `
       <span class="ar-ico"></span>

@@ -105,7 +105,7 @@ function drawMain(c) {
   function paintAgenda(ds) {
     const evs = eventsOn(ds);
     agenda.innerHTML = evs.length
-      ? evs.map((e) => `<button class="ev" data-id="${e.id}" style="--ec:${e.color}"><span class="ev-t">${e.time || 'Seharian'}</span><span class="ev-n">${esc(e.title)}</span></button>`).join('')
+      ? evs.map((e) => `<button class="ev" data-id="${e.id}" title="${esc(e.title)}" style="--ec:${e.color}"><span class="ev-t">${e.time || 'Seharian'}</span><span class="ev-n">${esc(e.title)}</span></button>`).join('')
       : '<span class="cl-none">Tidak ada event, klik dua kali kartu untuk menambah</span>';
   }
 
