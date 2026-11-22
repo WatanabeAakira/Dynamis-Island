@@ -298,6 +298,11 @@ static class Program
             copyText?.StartSelection();
             return;
         }
+        if (cmd == "copy-text-copy")
+        {
+            if (copyText != null) await copyText.CopyLastResultAsync();
+            return;
+        }
         if (cmd == "location") { _ = Locate(); return; } // tidak butuh sesi media
         if (cmd != null && cmd.StartsWith("audio-")) { AudioControl.Handle(cmd, doc.RootElement); return; }
         if (cmd == "media-select-session")
