@@ -181,6 +181,24 @@ html, body {
 .copy-text-meta-language select { width: 165px; max-width: 100%; margin-top: 2px; padding: 0; border: 0; outline: none; background: transparent; color: var(--muted); font: inherit; font-size: 9px; }.copy-text-meta-language select option { background: #222; color: #fff; }
 .copy-text-enabled { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 9px; white-space: nowrap; }.copy-text-enabled input { accent-color: #56c878; }
 .copy-text-result { padding: 10px 14px; max-height: 116px; overflow: hidden; }.copy-text-result-head { display: flex; justify-content: space-between; align-items: center; }.copy-text-result-head > span { display: flex; align-items: center; gap: 9px; }.copy-text-result-head i { width: 23px; height: 23px; display: grid; place-items: center; border-radius: 7px; background: #54bd71; color: #102115; font-style: normal; font-weight: 800; }.copy-text-result-head b { font-size: 11px; }.copy-text-result-head small { color: var(--muted); font-size: 9px; }.copy-text-copy { border: 0; background: transparent; color: var(--muted); font-size: 19px; cursor: pointer; }.copy-text-result pre { max-height: 60px; margin: 7px 0 0; overflow: auto; white-space: pre-wrap; word-break: break-word; color: rgba(255,255,255,.82); font: 10px/1.4 'Segoe UI', sans-serif; }
+.copy-text-view.has-result .copy-text-card { padding: 10px 16px 8px; }
+.copy-text-view.has-result .copy-text-intro { gap: 10px; }
+.copy-text-view.has-result .copy-text-icon { width: 40px; height: 40px; border-radius: 12px; }
+.copy-text-view.has-result .copy-text-icon svg { width: 28px; }
+.copy-text-view.has-result .copy-text-title h2 { margin: 0; font-size: 15px; }
+.copy-text-view.has-result .copy-text-title p,
+.copy-text-view.has-result .copy-text-illustration { display: none; }
+.copy-text-view.has-result .copy-text-workflow { display: block; margin-top: 8px; }
+.copy-text-view.has-result .copy-text-actions { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 12px; padding: 0; border: 0; }
+.copy-text-view.has-result .copy-text-statusline { grid-column: 1; grid-row: 1; font-size: 12px; }
+.copy-text-view.has-result .copy-text-error { grid-column: 1; grid-row: 2; margin-top: 0; }
+.copy-text-view.has-result .copy-text-buttons { grid-column: 2; grid-row: 1 / span 2; margin: 0; }
+.copy-text-view.has-result .copy-text-action { min-height: 34px; }
+.copy-text-view.has-result .copy-text-meta { min-height: 36px; gap: 18px; margin-top: 6px; }
+.copy-text-view.has-result .copy-text-meta-icon { font-size: 18px; }
+.copy-text-view.has-result .copy-text-meta-language select { width: 145px; }
+.copy-text-view.has-result .copy-text-result { max-height: 116px; padding: 8px 12px; }
+.copy-text-view.has-result .copy-text-result pre { max-height: 62px; margin-top: 5px; }
 .tab-btn[data-tab="copy-text"].processing { color: var(--accent); animation: copyTextTabPulse 1s ease-in-out infinite; }
 @keyframes copyTextBlink { 50% { opacity: .45; } }
 @keyframes copyTextPulse { 0%, 100% { opacity: .2; } 50% { opacity: 1; } }

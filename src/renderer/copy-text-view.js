@@ -98,6 +98,7 @@ export function renderCopyText(container, settings) {
 }
 
 function updateStatus(container, msg) {
+  container.querySelector('.copy-text-view')?.classList.toggle('has-result', !!activeText);
   const status = container.querySelector('#copyTextStatus');
   const line = container.querySelector('#copyTextStatusLine');
   if (status) status.textContent = activeStatus;
