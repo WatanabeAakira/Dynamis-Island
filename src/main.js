@@ -9,7 +9,7 @@ const tray = require('./tray');
 const shortcuts = require('./shortcuts');
 const aiMain = require('./ai-main');
 const translateMain = require('./translate-main');
-const { normalizeLanguage, resolveSystemLanguage } = require('./translate-languages.cjs');
+const { LANGUAGES, normalizeLanguage, resolveSystemLanguage } = require('./translate-languages.cjs');
 const trayIcon = require('./tray-icon');
 
 // Ukuran window tetap = ukuran mode terbesar. Animasi dikerjakan di CSS.
@@ -343,7 +343,8 @@ ipcMain.handle('helper:status', () => helper.status());
 
 ipcMain.handle('translate:defaults', () => ({
   systemLanguage: resolveSystemLanguage(app.getLocale(), 'id'),
-  maxCharacters: translateMain.MAX_TRANSLATION_CHARACTERS
+  maxCharacters: translateMain.MAX_TRANSLATION_CHARACTERS,
+  languages: LANGUAGES
 }));
 ipcMain.handle('translate:clipboard', () => {
   const text = clipboard.readText();

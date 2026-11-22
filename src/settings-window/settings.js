@@ -411,16 +411,18 @@ function pageAi(root) {
 
 function pageTranslation(root) {
   const current = { sourceLanguage: 'auto', targetLanguage: '', autoDetect: true, autoTranslate: true, provider: 'groq', ...(S.translation || {}) };
-  const languages = api.translateLanguages || [];
   const source = h('select', { class: 'sel' });
   source.append(h('option', { value: 'auto' }, 'Auto-detect'));
-  for (const language of languages) source.append(h('option', { value: language.code }, `${language.name} · ${language.native}`));
   source.value = current.autoDetect ? 'auto' : current.sourceLanguage;
 
   const target = h('select', { class: 'sel' });
-  for (const language of languages) target.append(h('option', { value: language.code }, `${language.name} · ${language.native}`));
-  const systemLanguage = api.translateDefaults().then((defaults) => {
+  api.translateDefaults().then((defaults) => {
+    for (const language of (defaults?.languages || [])) {
+      source.append(h('option', { value: language.code }, `${language.name} · ${language.native}`));
+      target.append(h('option', { value: language.code }, `${language.name} · ${language.native}`));
+    }
     const localeTarget = defaults?.systemLanguage || 'id';
+    source.value = current.autoDetect ? 'auto' : current.sourceLanguage;
     target.value = current.targetLanguage || localeTarget;
     if (!current.targetLanguage) target.title = `Following Windows display language (${target.value})`;
   });
@@ -457,7 +459,6 @@ function pageTranslation(root) {
     ),
     h('p', { class: 'note' }, 'Only text you enter, paste, or extract from a selected image or screen area is sent to Groq. Screenshots are processed locally and are not uploaded.')
   );
-  void systemLanguage;
 }
 
 // ---------- Navigasi ----------

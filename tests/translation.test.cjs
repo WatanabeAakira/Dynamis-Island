@@ -1,8 +1,17 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const { LANGUAGES, normalizeLanguage, resolveSystemLanguage } = require('../src/translate-languages.cjs');
 const translation = require('../src/translate-main.js');
 const groq = require('../src/translation-providers/groq.cjs');
+
+test('sandboxed preload only requires Electron and fetches language data over IPC', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'preload.js'), 'utf8');
+  const imports = [...source.matchAll(/\brequire\s*\(\s*(['"])(.*?)\1\s*\)/g)].map((match) => match[2]);
+  assert.deepEqual(imports, ['electron']);
+  assert.match(source, /translateDefaults:\s*\(\)\s*=>\s*ipcRenderer\.invoke\('translate:defaults'\)/);
+});
 
 test('advertised language codes are unique and normalize locale tags', () => {
   const codes = LANGUAGES.map((language) => language.code);

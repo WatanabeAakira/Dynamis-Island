@@ -1,5 +1,10 @@
-const LANGUAGES = window.api.translateLanguages;
-const LANGUAGE_BY_CODE = new Map(LANGUAGES.map((item) => [item.code, item]));
+let LANGUAGES = [];
+let LANGUAGE_BY_CODE = new Map();
+const languageDefaults = window.api.translateDefaults().then((defaults) => {
+  LANGUAGES = defaults?.languages || [];
+  LANGUAGE_BY_CODE = new Map(LANGUAGES.map((item) => [item.code, item]));
+  return defaults;
+}).catch(() => null);
 const MAX_TRANSLATION_CHARACTERS = 10000;
 const ICONS = {
   translate: '<path d="M4 6h11M9.5 4v2m4 0c-.6 3.8-3.7 6.7-7.5 8m1-5c1 2 2.8 3.7 5 4.7M14 20l3.5-8 3.5 8m-5.8-2.8h4.6"/><path d="M17 4l3 3m0-3-3 3"/>',
@@ -24,7 +29,7 @@ let lastSignature = '';
 let offTranslate = null;
 let helperHandler = null;
 let settingsHandler = null;
-let systemTarget = resolveSystemLanguage(navigator.language);
+let systemTarget = 'id';
 
 const icon = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
 const countChars = (text) => Array.from(text).length;
@@ -81,6 +86,16 @@ export function renderTranslate(container, settings) {
   source.value = state.sourceLanguage;
   target.value = state.targetLanguage;
   updateView(container);
+  languageDefaults.then((defaults) => {
+    if (!defaults || !container.querySelector('.translate-view')) return;
+    systemTarget = resolveSystemLanguage(defaults.systemLanguage || navigator.language);
+    if (!cfg.targetLanguage) state.targetLanguage = systemTarget;
+    fillLanguages(source, true);
+    fillLanguages(target, false);
+    source.value = state.sourceLanguage;
+    target.value = state.targetLanguage;
+    updateView(container);
+  });
 
   source.addEventListener('change', () => {
     state.sourceLanguage = source.value;
@@ -178,16 +193,6 @@ export function renderTranslate(container, settings) {
     if (changed) scheduleTranslation(false);
   };
   window.addEventListener('island:settings', settingsHandler);
-  window.api.translateDefaults().then((defaults) => {
-    if (!defaults) return;
-    systemTarget = resolveSystemLanguage(defaults.systemLanguage);
-    const currentSettings = settings.translation || {};
-    if (!currentSettings.targetLanguage) {
-      state.targetLanguage = systemTarget;
-      target.value = systemTarget;
-      updateView(container);
-    }
-  });
 }
 
 function fillLanguages(select, source) {

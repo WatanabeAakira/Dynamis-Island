@@ -1,5 +1,4 @@
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
-const { LANGUAGES } = require('./translate-languages.cjs');
 
 contextBridge.exposeInMainWorld('api', {
   setIgnoreMouse: (ignore) => ipcRenderer.send('island:set-ignore', ignore),
@@ -74,7 +73,6 @@ contextBridge.exposeInMainWorld('api', {
   aiChat: (req) => ipcRenderer.send('ai:chat', req),
   aiCancel: (id) => ipcRenderer.send('ai:cancel', id),
   onAiEvent: (cb) => { const h = (_e, ev) => cb(ev); ipcRenderer.on('ai:event', h); return () => ipcRenderer.removeListener('ai:event', h); },
-  translateLanguages: LANGUAGES,
   translateDefaults: () => ipcRenderer.invoke('translate:defaults'),
   translateClipboard: () => ipcRenderer.invoke('translate:clipboard'),
   translateCopy: (text) => ipcRenderer.invoke('translate:copy', text),
