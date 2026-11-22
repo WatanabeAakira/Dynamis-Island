@@ -72,11 +72,38 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ inputs.tag }}
 
-      - name: Build installer dan upload ke GitHub Releases
-        run: npm run release:win
+      - name: Build installer Windows
+        run: npm run build:win
+
+      - name: Upload aset GitHub Releases
+        shell: pwsh
+        run: |
+          $tag = if ($env:RELEASE_TAG) { $env:RELEASE_TAG } else { $env:GITHUB_REF_NAME }
+          $headers = @{
+            Authorization = "Bearer $env:GITHUB_TOKEN"
+            Accept = "application/vnd.github+json"
+            "X-GitHub-Api-Version" = "2022-11-28"
+          }
+          $api = "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases"
+          $release = Invoke-RestMethod -Uri "$api/tags/$tag" -Headers $headers
+          $uploadBase = $release.upload_url -replace '\{.*$',''
+
+          $version = if ($tag.StartsWith('v')) { $tag.Substring(1) } else { $tag }
+          $assets = @(
+            @{ Path = "dist/Dynamis-Island-Setup-$version.exe"; Type = "application/octet-stream" },
+            @{ Path = "dist/Dynamis-Island-Setup-$version.exe.blockmap"; Type = "application/octet-stream" },
+            @{ Path = "dist/latest.yml"; Type = "application/octet-stream" }
+          )
+
+          foreach ($asset in $assets) {
+            $path = Resolve-Path -LiteralPath $asset.Path
+            $name = [IO.Path]::GetFileName($path)
+            $encodedName = [Uri]::EscapeDataString($name)
+            Invoke-RestMethod -Uri "$uploadBase`?name=$encodedName" -Method Post -Headers $headers -ContentType $asset.Type -InFile $path
+          }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
 
       - name: Publikasikan GitHub Release
         shell: pwsh
