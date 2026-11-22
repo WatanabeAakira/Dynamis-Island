@@ -8,6 +8,7 @@
     <AssemblyName>IslandHelper</AssemblyName>
     <InvariantGlobalization>true</InvariantGlobalization>
     <UseWPF>true</UseWPF>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
