@@ -15,6 +15,28 @@ const RING_MAX_MS = 120000;  // berhenti sendiri jika tidak direspons
 // Array ini dipakai bersama oleh tampilan; selalu diubah di tempat (tidak diganti objeknya)
 export const alarms = load('alarms', []);
 export const ring = { active: null }; // { alarm, since }
+let alarmLeader = false;
+export const isAlarmLeader = () => alarmLeader;
+window.api?.islandInstance?.().then((instance) => {
+  alarmLeader = !!instance?.alarmLeader;
+  if (instance?.alarmTakeover?.active) {
+    applyTakeover(instance.alarmTakeover);
+    if (alarmLeader && instance.alarmTakeover.alarm?.alarm) {
+      startSound(instance.alarmTakeover.alarm.alarm);
+      ringTimer = setTimeout(stopRing, RING_MAX_MS);
+    }
+  }
+}).catch(() => { alarmLeader = true; });
+window.api?.onIslandRole?.((role) => {
+  const wasLeader = alarmLeader;
+  alarmLeader = !!role?.alarmLeader;
+  if (wasLeader && !alarmLeader) { stopSound(); clearTimeout(ringTimer); ringTimer = 0; }
+  else if (!wasLeader && alarmLeader && ring.active) {
+    startSound(ring.active.alarm);
+    clearTimeout(ringTimer);
+    ringTimer = setTimeout(stopRing, RING_MAX_MS);
+  }
+});
 
 const subs = new Set();
 export const onAlarms = (f) => { subs.add(f); return () => subs.delete(f); };
@@ -114,12 +136,18 @@ function fire(a, fromSnooze = false) {
   ringTimer = setTimeout(stopRing, RING_MAX_MS);
   if (!fromSnooze && !a.days.some(Boolean)) { a.enabled = false; persist(); } // alarm sekali pakai
   emit();
+  window.api?.setAlarmState?.({ active: true, alarm: ring.active });
   document.dispatchEvent(new CustomEvent('island:alert', {
     detail: { tab: 'timer', sub: 'alarm', title: `Alarm ${pad(a.h)}:${pad(a.m)}`, persist: true }
   }));
 }
 
 export function stopRing() {
+  if (ring.active) window.api?.alarmAction?.({ type: 'dismiss' });
+  stopRingLocal();
+}
+
+function stopRingLocal() {
   stopSound();
   clearTimeout(ringTimer);
   ring.active = null;
@@ -129,9 +157,31 @@ export function stopRing() {
 export function snoozeRing() {
   const r = ring.active;
   if (!r) return;
-  snoozes.push({ id: r.alarm.id, at: Date.now() + SNOOZE_MIN * 60000 });
-  stopRing();
+  window.api?.alarmAction?.({ type: 'snooze', alarm: r.alarm, at: Date.now() + SNOOZE_MIN * 60000 });
 }
+
+function applyTakeover({ active, alarm }) {
+  if (!active) { if (ring.active) stopRingLocal(); return; }
+  if (!alarm) return;
+  ring.active = alarm;
+  emit();
+  document.dispatchEvent(new CustomEvent('island:alert', { detail: { tab: 'timer', sub: 'alarm', title: `Alarm ${pad(alarm.alarm?.h)}:${pad(alarm.alarm?.m)}`, persist: true } }));
+}
+window.api?.onAlarmTakeover?.(applyTakeover);
+
+window.api?.onAlarmAction?.((action) => {
+  if (action?.type === 'snooze' && action.alarm) {
+    snoozes.push({ id: action.alarm.id, at: Number(action.at) || Date.now() + SNOOZE_MIN * 60000 });
+    stopRingLocal();
+  } else if (action?.type === 'dismiss') stopRingLocal();
+});
+
+window.addEventListener('storage', (event) => {
+  if (event.key !== 'alarms') return;
+  const latest = load('alarms', []);
+  alarms.splice(0, alarms.length, ...latest);
+  emit();
+});
 
 export function checkAlarms(now = Date.now()) {
   for (const a of alarms) {
@@ -152,4 +202,4 @@ export function checkAlarms(now = Date.now()) {
   }
 }
 
-setInterval(() => checkAlarms(), 1000);
+setInterval(() => { if (alarmLeader) checkAlarms(); }, 1000);

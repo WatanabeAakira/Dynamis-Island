@@ -251,21 +251,35 @@ function renderActive() {
   localizeTree(content, settings.language);
 }
 
-tabbar.addEventListener('click', (e) => {
+function activateTabbarTarget(e) {
   const more = e.target.closest('[data-action="more"]');
   if (more) {
     const open = island.dataset.moreOpen !== 'true';
     island.dataset.moreOpen = String(open);
     more.setAttribute('aria-expanded', String(open));
-    return;
+    return true;
   }
   const b = e.target.closest('.tab-btn');
   const menuButton = e.target.closest('.more-entry');
-  if (!b && !menuButton) return;
+  if (!b && !menuButton) return false;
   const actionButton = b || menuButton;
-  if (actionButton.dataset.action === 'pin') { setPinned(!pinnedOpen); return; }
+  if (actionButton.dataset.action === 'pin') { setPinned(!pinnedOpen); return true; }
   // Pengaturan dibuka di window terpisah; island hanya untuk melakukan sesuatu
   if (actionButton.dataset.tab === 'settings') window.api.openSettings(); else selectTab(actionButton.dataset.tab);
+  return true;
+}
+
+let lastPointerActivation = null;
+tabbar.addEventListener('pointerup', (e) => {
+  if (e.button !== 0 || !activateTabbarTarget(e)) return;
+  lastPointerActivation = { target: e.target.closest('button'), at: Date.now() };
+});
+tabbar.addEventListener('click', (e) => {
+  if (lastPointerActivation && lastPointerActivation.target === e.target.closest('button') && Date.now() - lastPointerActivation.at < 500) {
+    lastPointerActivation = null;
+    return;
+  }
+  activateTabbarTarget(e);
 });
 
 // ---------- Pointer: buka saat masuk, tutup saat keluar ----------

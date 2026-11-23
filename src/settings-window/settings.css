@@ -272,3 +272,15 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--blue); outl
 .sidebar-top::-webkit-scrollbar { width: 5px; }
 .sidebar-top::-webkit-scrollbar-thumb { border-radius: 5px; background: rgba(255,255,255,.16); }
 .sidebar-footer { margin-top: 8px; }
+
+.display-modes { display:flex; flex-wrap:wrap; gap:7px; }
+.display-modes .btn.selected,.monitor-rect.selected,.monitor-row.selected { border-color:rgba(255,159,10,.65); background:rgba(255,159,10,.15); }
+.monitor-diagram { position:relative; max-width:100%; min-height:70px; margin:12px auto; }
+.monitor-rect { position:absolute; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; overflow:hidden; padding:6px; border:1px solid rgba(255,255,255,.2); border-radius:10px; background:linear-gradient(145deg,#363639,#242427); color:var(--tx); cursor:pointer; }
+.monitor-rect b { font-size:16px; }
+.monitor-rect small { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--mu); font-size:10px; }
+.monitor-row { display:flex; align-items:center; justify-content:space-between; width:100%; gap:12px; padding:10px 14px; border:0; border-top:1px solid var(--sep); background:transparent; color:var(--tx); text-align:left; cursor:pointer; }
+.monitor-row-copy { display:flex; flex-direction:column; min-width:0; gap:3px; }
+.monitor-row-copy b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12.5px; }
+.monitor-row-copy small { color:var(--mu); font-size:11px; }
+.tag.muted { background:rgba(255,255,255,.07); color:var(--mu); }

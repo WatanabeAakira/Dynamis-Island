@@ -28,6 +28,7 @@ static class Program
     static DesktopCompanion? companion;
     static QuickSettingsService? quickSettings;
     static SystemMonitorService? systemMonitor;
+    static DisplayMonitorService? displayMonitors;
 
     static string SessionId(GlobalSystemMediaTransportControlsSession s) => s.SourceAppUserModelId ?? "";
 
@@ -42,6 +43,7 @@ static class Program
         companion.Start();
         quickSettings = new QuickSettingsService(Send); quickSettings.Start();
         systemMonitor = new SystemMonitorService(Send);
+        displayMonitors = new DisplayMonitorService(Send);
         if (args.Contains("--notification-capture-test", StringComparer.OrdinalIgnoreCase))
         {
             await ReadCommands();
@@ -284,6 +286,7 @@ static class Program
         companion?.Dispose();
         quickSettings?.Dispose();
         systemMonitor?.Dispose();
+        displayMonitors?.Dispose();
         Environment.Exit(0); // Electron menutup stdin -> helper ikut berhenti
     }
 

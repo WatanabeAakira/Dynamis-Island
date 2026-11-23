@@ -200,13 +200,24 @@ const group = (title, description, icon, ...rows) => h('section', { class: 'sett
 
 // ---------- Data ----------
 let S = {};
-async function save(patch) { S = await api.setSettings(patch); }
+async function save(patch) {
+  const saved = await api.setSettings(patch);
+  if (saved && typeof saved === 'object') S = saved;
+  return S;
+}
 api.onSettings((s) => {
+  if (!s || typeof s !== 'object') {
+    console.error('[settings] ignored empty settings update');
+    return;
+  }
   const changed = S.language !== s.language;
   S = s;
   document.documentElement.style.setProperty('--accent', /^#[0-9a-f]{6}$/i.test(S.accent || '') ? S.accent : '#ff9f0a');
   if (changed) { buildNav(); show(current); }
+  else if (current === 'display') show('display');
 });
+
+api.onDisplaysChanged?.(() => { if (current === 'display') show('display'); });
 
 // ---------- Halaman ----------
 const ACCENTS = ['#8b9bff', '#6ee7b7', '#fbbf77', '#f7a1c4', '#7dd3fc', '#c4b5fd'];
@@ -224,6 +235,89 @@ function pageGeneral(root) {
     ),
     h('div', { class: 'card about' }, h('i', { html: IC.brand }), h('div', {}, h('b', {}, 'Dynamis Island'), ver))
   );
+}
+
+function pageDisplay(root) {
+  const config = S.display || { mode: 'primary', monitors: {} };
+  let displays = [];
+  let selected = '';
+  const content = h('div');
+  const repaint = async () => {
+    displays = await api.displaysList();
+    if (!Array.isArray(displays)) throw new Error('The display service returned an invalid monitor list.');
+    if (!selected || !displays.some((d) => d.id === selected)) selected = displays.find((d) => d.primary)?.id || displays[0]?.id || '';
+    const fresh = S.display || config;
+    const xs = displays.map((d) => d.bounds.x), ys = displays.map((d) => d.bounds.y);
+    const minX = Math.min(0, ...xs), minY = Math.min(0, ...ys);
+    const maxX = Math.max(...displays.map((d) => d.bounds.x + d.bounds.width), minX + 1);
+    const maxY = Math.max(...displays.map((d) => d.bounds.y + d.bounds.height), minY + 1);
+    const scale = Math.min(420 / (maxX - minX), 190 / (maxY - minY));
+    const diagram = h('div', { class: 'monitor-diagram', role: 'group', 'aria-label': 'Monitor arrangement' });
+    for (const [index, d] of displays.entries()) {
+      const rect = d.bounds;
+      const box = h('button', { type: 'button', class: `monitor-rect${selected === d.id ? ' selected' : ''}`, title: d.name, onclick: () => { selected = d.id; repaint(); } },
+        h('b', {}, index + 1), h('small', {}, d.primary ? 'Primary' : d.name));
+      box.style.left = `${(rect.x - minX) * scale}px`;
+      box.style.top = `${(rect.y - minY) * scale}px`;
+      box.style.width = `${Math.max(70, rect.width * scale)}px`;
+      box.style.height = `${Math.max(48, rect.height * scale)}px`;
+      diagram.append(box);
+    }
+    diagram.style.width = `${(maxX - minX) * scale}px`;
+    diagram.style.height = `${(maxY - minY) * scale}px`;
+    const selectedDisplay = displays.find((d) => d.id === selected);
+    const selectedKey = selectedDisplay?.monitorId || selected;
+    const showOnMonitor = fresh.mode === 'all' || (fresh.mode === 'primary' && selectedDisplay?.primary) || (fresh.mode === 'custom' && (fresh.monitors?.[selectedKey] ?? fresh.monitors?.[selected]));
+    const modeControl = h('div', { class: 'display-modes' });
+    for (const [value, label] of [['primary', 'Primary Monitor Only'], ['all', 'All Monitors'], ['custom', 'Custom']]) {
+      modeControl.append(h('button', { type: 'button', class: `btn${fresh.mode === value ? ' selected' : ''}`, onclick: async (event) => {
+        const button = event.currentTarget;
+        if (button.disabled) return;
+        button.disabled = true;
+        const monitors = { ...(fresh.monitors || {}) };
+        for (const d of displays) { const key = d.monitorId || d.id; if (monitors[key] === undefined) monitors[key] = fresh.mode === 'all' || (fresh.mode === 'primary' && d.primary); }
+        try {
+          await save({ display: { ...fresh, mode: value, monitors } });
+          show('display');
+        } catch (error) {
+          console.error('[settings] unable to save display mode:', error);
+          button.disabled = false;
+          content.replaceChildren(h('p', { class: 'empty', role: 'alert' }, `Unable to save display settings: ${error?.message || 'Unknown error'}`));
+        }
+      } }, label));
+    }
+    const rows = displays.map((d) => {
+      const key = d.monitorId || d.id;
+      const currentVisible = fresh.mode === 'all' || (fresh.mode === 'primary' && d.primary) || (fresh.mode === 'custom' && (fresh.monitors?.[key] ?? fresh.monitors?.[d.id]) === true);
+      const resolution = `${d.bounds.width} × ${d.bounds.height}`;
+      const refreshRate = d.refreshRate ? ` · ${d.refreshRate} Hz` : '';
+      return h('button', { type: 'button', class: `monitor-row${selected === d.id ? ' selected' : ''}`, onclick: () => { selected = d.id; repaint(); } },
+        h('span', { class: 'monitor-row-copy' }, h('b', {}, `${d.name}${d.primary ? ' · Primary Display' : ''}`), h('small', {}, `${resolution}${refreshRate} · ID ${key}`)),
+        h('span', { class: `tag ${currentVisible ? '' : 'muted'}` }, currentVisible ? 'Island on' : 'Island off'));
+    });
+    const detail = selectedDisplay ? group(`Selected display · ${selectedDisplay.name}`, `${selectedDisplay.bounds.width} × ${selectedDisplay.bounds.height} · Scale ${Math.round((selectedDisplay.scaleFactor || 1) * 100)}% · Rotation ${selectedDisplay.rotation || 0}°${selectedDisplay.primary ? ' · Primary' : ''}`, IC.appearance,
+      row('Island visibility', fresh.mode === 'custom' ? 'Set visibility for this display.' : 'Change to Custom mode to set this display individually.', fresh.mode === 'custom'
+        ? toggle((fresh.monitors?.[selectedKey] ?? fresh.monitors?.[selectedDisplay.id]) === true, async (value) => {
+          try {
+            await save({ display: { ...fresh, monitors: { ...(fresh.monitors || {}), [selectedKey]: value } } });
+            show('display');
+          } catch (error) {
+            console.error('[settings] unable to save monitor visibility:', error);
+            content.replaceChildren(h('p', { class: 'empty', role: 'alert' }, `Unable to save display settings: ${error?.message || 'Unknown error'}`));
+          }
+        })
+        : h('span', { class: 'tag' }, showOnMonitor ? 'On' : 'Off'))) : null;
+    content.replaceChildren(
+      group('Display mode', 'Choose which connected displays show an Island instance.', IC.appearance, row('Mode', 'Switching modes keeps saved per-display preferences.', modeControl)),
+      group('Monitor arrangement', 'Select a display to view its details. Rectangles follow the Windows display layout.', IC.features, diagram),
+      group('Connected Displays', `${displays.length} display${displays.length === 1 ? '' : 's'} detected.`, IC.general, ...rows),
+      ...(detail ? [detail] : []));
+  };
+  root.append(content);
+  repaint().catch((error) => {
+    console.error('[settings] unable to load displays:', error);
+    content.replaceChildren(h('p', { class: 'empty', role: 'alert' }, `Unable to load display information: ${error?.message || 'Unknown error'}`));
+  });
 }
 
 function pageLanguage(root) {
@@ -615,6 +709,7 @@ const PAGES = {
   language: { title: 'Bahasa', desc: 'Atur bahasa yang dipakai aplikasi.', icon: IC.general, build: pageLanguage },
   appearance: { title: 'Tampilan', desc: 'Warna dan gaya island.', icon: IC.appearance, build: pageAppearance },
   behavior: { title: 'Perilaku', desc: 'Kapan island terbuka dan tertutup.', icon: IC.behavior, build: pageBehavior },
+  display: { title: 'Multi-Monitor', desc: 'Atur Island untuk setiap display yang terhubung.', icon: IC.appearance, build: pageDisplay },
   clock: { title: 'Jam', desc: 'Format waktu, tanggal, dan tampilan jam.', icon: IC.clock, build: pageClock },
   apps: { title: 'Pintasan Aplikasi', desc: 'Aplikasi favorit, tampilan, dan perilaku di island.', icon: IC.apps, build: pageApps },
   ai: { title: 'Asisten AI', desc: 'Kunci API Groq, model, dan konteks yang dipakai asisten.', icon: IC.ai, build: pageAi },
@@ -672,11 +767,12 @@ const NAV = [
 
 // Warna ikon per halaman (gaya ikon sistem macOS)
 const TILE = { general: '#8e8e93', language: '#5e5ce6', appearance: '#0a84ff', behavior: '#ff9f0a', clock: '#0a84ff', ai: '#bf5af2', translation: '#5d9a73', notif: '#ff453a', apps: '#30b0c7', tray: '#5e5ce6', lyrics: '#ff375f', clipboard: '#8b5cf6', notes: '#c084fc', 'quick-settings':'#38bdf8','system-monitor':'#22d3ee' };
-const SECTIONS = [{ id: 'general' }, { id: 'language' }, { id: 'appearance' }, { id: 'behavior' }, { sec: 'Fitur', ids: ['ai', 'translation', 'notif', 'apps', 'tray', 'lyrics', 'clock', 'clipboard', 'notes','quick-settings','system-monitor'] }];
+const SECTIONS = [{ id: 'general' }, { id: 'language' }, { id: 'appearance' }, { id: 'behavior' }, { sec: 'Display', ids: ['display'] }, { sec: 'Fitur', ids: ['ai', 'translation', 'notif', 'apps', 'tray', 'lyrics', 'clock', 'clipboard', 'notes','quick-settings','system-monitor'] }];
 
 let current = 'general';
 function show(id) {
   if (!PAGES[id]) id = 'general';
+  if (!S || typeof S !== 'object') S = { language: 'id', accent: '#ff9f0a' };
   current = id;
   setLanguage(S.language);
   const p = PAGES[id];
@@ -773,6 +869,7 @@ async function init() {
   wireWindow();
   try {
     S = await api.getSettings();
+    if (!S || typeof S !== 'object') throw new Error('The settings service returned no settings.');
     setLanguage(S.language);
     watchLocale(document.body, () => S.language);
     buildNav();

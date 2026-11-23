@@ -1,6 +1,6 @@
 // Mesin waktu bersama (timer sekarang; focus dan alarm menyusul). Terus berjalan walau island tertutup.
 import { playChime } from './sound.js';
-import { ring, onAlarms } from './alarmkeeper.js';
+import { ring, onAlarms, isAlarmLeader } from './alarmkeeper.js';
 
 const pad = (n) => String(n).padStart(2, '0');
 export function parts(ms) {
@@ -18,7 +18,8 @@ const load = (k, d) => { try { const v = localStorage.getItem(k); return v == nu
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 
 const total0 = load('timer.total', 5 * 60000);
-export const timer = { total: total0, remaining: total0, running: false, endsAt: 0, loop: load('timer.loop', false), done: false };
+export const timer = { total: total0, remaining: total0, running: false, endsAt: 0, loop: load('timer.loop', false), done: false, ...load('timer.state', {}) };
+const saveTimer = () => save('timer.state', { total: timer.total, remaining: timer.remaining, running: timer.running, endsAt: timer.endsAt, loop: timer.loop, done: timer.done });
 
 const subs = new Set();
 export const onTimer = (f) => { subs.add(f); return () => subs.delete(f); };
@@ -31,6 +32,7 @@ function finish() {
   timer.running = false;
   timer.remaining = 0;
   timer.done = true;
+  saveTimer();
   emit();
   stopAlert();
   stopSound = playChime(3);
@@ -41,7 +43,7 @@ function finish() {
 setInterval(() => {
   if (!timer.running) return;
   timer.remaining = Math.max(0, timer.endsAt - Date.now());
-  if (timer.remaining <= 0) finish(); else emit();
+  if (timer.remaining <= 0 && isAlarmLeader()) finish(); else emit();
 }, 200);
 
 export function timerStart() {
@@ -49,26 +51,30 @@ export function timerStart() {
   if (timer.done || timer.remaining <= 0) { timer.remaining = timer.total; timer.done = false; }
   timer.endsAt = Date.now() + timer.remaining;
   timer.running = true;
+  timer.done = false; saveTimer();
   emit();
 }
 export function timerPause() {
   if (!timer.running) return;
   timer.remaining = Math.max(0, timer.endsAt - Date.now());
   timer.running = false;
+  saveTimer();
   emit();
 }
 export function timerReset() {
   stopAlert();
   timer.running = false; timer.done = false; timer.remaining = timer.total;
+  saveTimer();
   emit();
 }
 export function timerSet(ms) {
   stopAlert();
   timer.total = ms; timer.remaining = ms; timer.running = false; timer.done = false;
   save('timer.total', ms);
+  saveTimer();
   emit();
 }
-export function timerLoop(on) { timer.loop = on; save('timer.loop', on); emit(); }
+export function timerLoop(on) { timer.loop = on; save('timer.loop', on); saveTimer(); emit(); }
 
 // ---------- Focus: sesi fokus dan istirahat ----------
 const F_LIMIT = { focus: [1, 120], short: [1, 30], long: [1, 60] };
@@ -81,6 +87,8 @@ export const focus = {
   running: false, endsAt: 0, done: false,
   sessions: load('focus.sessions', 0), auto: load('focus.auto', false)
 };
+Object.assign(focus, load('focus.state', {}));
+const saveFocus = () => save('focus.state', { mode: focus.mode, dur: focus.dur, total: focus.total, remaining: focus.remaining, running: focus.running, endsAt: focus.endsAt, done: focus.done, sessions: focus.sessions, auto: focus.auto });
 
 const fSubs = new Set();
 export const onFocus = (f) => { fSubs.add(f); return () => fSubs.delete(f); };
@@ -101,6 +109,7 @@ function fFinish() {
   focus.done = true;
   if (focus.mode === 'focus') { focus.sessions++; save('focus.sessions', focus.sessions); }
   fEmit();
+  saveFocus();
   fStop();
   fStop = playChime(3);
   document.dispatchEvent(new CustomEvent('island:alert', {
@@ -110,7 +119,7 @@ function fFinish() {
   const next = focus.mode === 'focus' ? (focus.sessions % 4 === 0 ? 'long' : 'short') : 'focus';
   setTimeout(() => {
     if (!focus.done) return; // pengguna sudah mengatur sendiri
-    fLoadMode(next);
+    fLoadMode(next); saveFocus();
     fEmit();
     if (focus.auto) focusStart();
   }, 4800);
@@ -119,7 +128,7 @@ function fFinish() {
 setInterval(() => {
   if (!focus.running) return;
   focus.remaining = Math.max(0, focus.endsAt - Date.now());
-  if (focus.remaining <= 0) fFinish(); else fEmit();
+  if (focus.remaining <= 0 && isAlarmLeader()) fFinish(); else fEmit();
 }, 200);
 
 export function focusStart() {
@@ -127,25 +136,40 @@ export function focusStart() {
   if (focus.done || focus.remaining <= 0) fLoadMode(focus.mode);
   focus.endsAt = Date.now() + focus.remaining;
   focus.running = true;
+  saveFocus();
   fEmit();
 }
 export function focusPause() {
   if (!focus.running) return;
   focus.remaining = Math.max(0, focus.endsAt - Date.now());
   focus.running = false;
+  saveFocus();
   fEmit();
 }
-export function focusReset() { fStop(); fLoadMode(focus.mode); fEmit(); }
-export function focusMode(m) { fStop(); fLoadMode(m); fEmit(); }
-export function focusSkip() { fStop(); fLoadMode(focus.mode === 'focus' ? 'short' : 'focus'); fEmit(); }
+export function focusReset() { fStop(); fLoadMode(focus.mode); saveFocus(); fEmit(); }
+export function focusMode(m) { fStop(); fLoadMode(m); saveFocus(); fEmit(); }
+export function focusSkip() { fStop(); fLoadMode(focus.mode === 'focus' ? 'short' : 'focus'); saveFocus(); fEmit(); }
 export function focusAdjust(m, delta) {
   const [lo, hi] = F_LIMIT[m];
   focus.dur[m] = Math.min(hi, Math.max(lo, focus.dur[m] + delta));
   save('focus.dur', focus.dur);
   if (focus.mode === m) { fStop(); fLoadMode(m); }
-  fEmit();
+  saveFocus(); fEmit();
 }
-export function focusAuto(on) { focus.auto = on; save('focus.auto', on); fEmit(); }
+export function focusAuto(on) { focus.auto = on; save('focus.auto', on); saveFocus(); fEmit(); }
+
+window.addEventListener('storage', (event) => {
+  if (event.key === 'timer.state') {
+    const state = load('timer.state', {});
+    if (timer.done && !state.done) stopAlert();
+    Object.assign(timer, state); emit();
+  }
+  else if (event.key === 'focus.state') {
+    const state = load('focus.state', {});
+    if (focus.done && !state.done) fStop();
+    Object.assign(focus, state); fEmit();
+  }
+});
 
 // ---------- Untuk pill di mode collapse ----------
 export function pillInfo() {
