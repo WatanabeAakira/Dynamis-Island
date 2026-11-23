@@ -11,6 +11,9 @@ const aiMain = require('./ai-main');
 const translateMain = require('./translate-main');
 const { LANGUAGES, normalizeLanguage, resolveSystemLanguage } = require('./translate-languages.cjs');
 const trayIcon = require('./tray-icon');
+const { IslandWindowManager } = require('./island-window-manager.cjs');
+const { normalizeDisplayConfig, mergeSettings, enrichDisplays } = require('./display-config.cjs');
+const { SharedServiceCoordinator } = require('./shared-service-coordinator.cjs');
 
 // Ukuran window tetap = ukuran mode terbesar. Animasi dikerjakan di CSS.
 const WIN_W = 700;
@@ -41,10 +44,15 @@ const DEFAULT_SETTINGS = {
   clipboard: { enabled: true, capture: true, maxItems: 200 },
   notes: { enabled: true, autosave: true },
   quickSettings: { enabled: true, compactStatus: true, controls: { wifi: true, bluetooth: true, airplane: true, doNotDisturb: true, battery: true, microphone: true, brightness: true, nightLight: true, theme: true, volume: true } },
-  systemMonitor: { enabled: true, intervalMs: 1000, graphHistorySeconds: 60, processMonitoring: true, processCount: 5, sort: 'cpu', compactMetric: 'cpu', alertsEnabled: false, cpuThreshold: 95, ramThreshold: 90, metrics: { cpu: true, ram: true, gpu: true, disk: true, temperature: true, network: true } }
+  systemMonitor: { enabled: true, intervalMs: 1000, graphHistorySeconds: 60, processMonitoring: true, processCount: 5, sort: 'cpu', compactMetric: 'cpu', alertsEnabled: false, cpuThreshold: 95, ramThreshold: 90, metrics: { cpu: true, ram: true, gpu: true, disk: true, temperature: true, network: true } },
+  display: { mode: 'primary', monitors: {} }
 };
 
-let win = null;
+let islandManager = null;
+let nativeDisplays = [];
+let islandTrayHidden = false;
+let alarmTakeover = null;
+const sharedServices = new SharedServiceCoordinator((payload) => helper.send(payload));
 let settings = { ...DEFAULT_SETTINGS };
 let audioSessionApps = new Map();
 let audioOutputDeviceIds = new Set();
@@ -56,8 +64,10 @@ const settingsPath = () => path.join(app.getPath('userData'), 'settings.json');
 function loadSettings() {
   try {
     settings = { ...DEFAULT_SETTINGS, ...JSON.parse(fs.readFileSync(settingsPath(), 'utf8')) };
+    settings.display = normalizeDisplayConfig(settings.display);
   } catch {
     settings = { ...DEFAULT_SETTINGS };
+    settings.display = normalizeDisplayConfig(settings.display);
   }
 }
 
@@ -70,20 +80,8 @@ function applyAutoStart() {
   app.setLoginItemSettings({ openAtLogin: !!settings.autoStart });
 }
 
-// Menempel di y = 0 (tepi atas monitor), rata tengah horizontal. Monitor tunggal.
-function placeWindow() {
-  if (!win) return;
-  const b = screen.getPrimaryDisplay().bounds;
-  win.setBounds({
-    x: Math.round(b.x + (b.width - WIN_W) / 2),
-    y: b.y,
-    width: WIN_W,
-    height: WIN_H
-  });
-}
-
-function createWindow() {
-  win = new BrowserWindow({
+function createIslandWindow(display, context) {
+  const island = new BrowserWindow({
     width: WIN_W,
     height: WIN_H,
     transparent: true,
@@ -107,14 +105,87 @@ function createWindow() {
     }
   });
 
-  win.setAlwaysOnTop(true, 'screen-saver');
-  win.setVisibleOnAllWorkspaces(true);
+  island.setAlwaysOnTop(true, 'screen-saver');
+  island.setVisibleOnAllWorkspaces(true);
   // Awalnya tembus klik; renderer yang mengatur saat pointer berada di atas island.
-  win.setIgnoreMouseEvents(true, { forward: true });
-  placeWindow();
+  island.setIgnoreMouseEvents(true, { forward: true });
+  island.setBounds(islandManager.bounds(display));
+  context.senderId = island.webContents.id;
 
-  win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
-  win.once('ready-to-show', () => win.showInactive());
+  island.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  island.once('ready-to-show', () => {
+    context.readyToShow = true;
+    if (!island.isDestroyed() && !context.serviceOnly && (!islandTrayHidden || alarmTakeover)) revealIsland(context);
+  });
+  island.webContents.on('did-finish-load', () => {
+    context.readyToShow = true;
+    if (!island.isDestroyed() && !context.serviceOnly && (!islandTrayHidden || alarmTakeover) && !island.isVisible()) revealIsland(context);
+  });
+  island.on('closed', () => { islandManager?.forget(context.id, island); releaseIslandRequests(context); });
+  return island;
+}
+
+function revealIsland(context) {
+  const { window: island, display } = context;
+  if (island.isDestroyed() || context.serviceOnly || (islandTrayHidden && !alarmTakeover)) return;
+  island.setBounds(islandManager.bounds(display));
+  island.setAlwaysOnTop(true, 'screen-saver');
+  if (!island.isVisible()) island.showInactive();
+  island.moveTop();
+}
+
+function refreshIslandWindows(displays = islandDisplayList()) {
+  if (!islandManager) return;
+  islandManager.sync(displays, { ...settings.display, alarmTakeover: !!alarmTakeover });
+  for (const context of islandManager.values()) context.window.webContents.send('island:role', { primary: !!context.display.primary, alarmLeader: context === islandManager.primary() });
+  for (const context of islandManager.values()) {
+    if ((islandTrayHidden && !alarmTakeover) || context.serviceOnly) context.window.hide();
+    else if (context.readyToShow && !context.window.isVisible()) revealIsland(context);
+  }
+  broadcast('displays:changed', islandDisplayList());
+}
+
+function islandDisplayList() {
+  return enrichDisplays(screen.getAllDisplays(), nativeDisplays, screen.getPrimaryDisplay().id);
+}
+
+function migrateMonitorPreferences(previous, current) {
+  const prefs = { ...(settings.display?.monitors || {}) };
+  let changed = false;
+  for (const display of current) {
+    const old = previous.find((entry) => entry.id === display.id);
+    if (!old) continue;
+    const oldKey = old.monitorId || old.id, newKey = display.monitorId || display.id;
+    if (oldKey !== newKey && prefs[oldKey] !== undefined && prefs[newKey] === undefined) {
+      prefs[newKey] = prefs[oldKey]; delete prefs[oldKey]; changed = true;
+    }
+  }
+  if (changed) { settings.display = { ...settings.display, monitors: prefs }; saveSettings(); }
+}
+
+async function handleDisplayAdded(_event, nativeDisplay) {
+  if (!islandManager) return;
+  const display = islandDisplayList().find((item) => item.id === String(nativeDisplay.id));
+  if (!display) return;
+  islandManager.holdForConfirmation(display);
+  refreshIslandWindows();
+  const result = await dialog.showMessageBox({
+    type: 'info', buttons: ['Show Island', 'Keep Hidden'], defaultId: 0, cancelId: 1,
+    title: 'New Display Detected',
+    message: 'A new monitor has been connected. Would you like to display Dynamis Island on this monitor?'
+  });
+  const show = result.response === 0;
+  const previousMode = settings.display?.mode || 'primary';
+  const monitors = { ...(settings.display?.monitors || {}) };
+  for (const item of islandDisplayList()) {
+    const key = item.monitorId || item.id;
+    if (monitors[key] === undefined) monitors[key] = previousMode === 'all' || (previousMode === 'primary' && item.primary);
+  }
+  settings.display = { ...(settings.display || {}), mode: 'custom', monitors: { ...monitors, [display.monitorId]: show } };
+  saveSettings();
+  islandManager.decide(display.id, show);
+  refreshIslandWindows();
+  broadcast('settings:changed', settings);
 }
 
 // Jangan anggap window "tertutup" saat tertutup game fullscreen (supaya timer, alarm, dan hover tetap hidup)
@@ -127,22 +198,23 @@ if (!gotLock) {
   app.whenReady().then(() => {
     loadSettings();
     applyAutoStart();
-    createWindow();
+    islandManager = new IslandWindowManager({ create: createIslandWindow });
+    refreshIslandWindows();
+    // Reconcile after Electron has completed initial screen setup and the first
+    // renderer load. This prevents first-run instances staying hidden until a
+    // settings or display event happens to refresh them.
+    setTimeout(() => refreshIslandWindows(), 250);
     trayIcon.init({
       toggleIsland: () => {
-        if (!win || win.isDestroyed()) return;
-        if (win.isVisible()) {
-          win.hide();
-        } else {
-          // Reset interaksi yang mungkin tertinggal saat window disembunyikan,
-          // misalnya pointer masih dianggap berada di atas island.
-          rendererOver = false;
-          hoverInside = false;
-          hoverCount = 0;
-          win.showInactive();
-          win.webContents.send('island:shown');
+        const contexts = islandManager?.values() || [];
+        if (!contexts.length) return;
+        islandTrayHidden = !islandTrayHidden;
+        for (const ctx of contexts) {
+          if (ctx.serviceOnly) { ctx.window.hide(); continue; }
+          if (islandTrayHidden) ctx.window.hide();
+          else { resetIslandInteraction(ctx); ctx.window.showInactive(); ctx.window.webContents.send('island:shown'); }
+          ctx.ignoring = null; applyIgnore(ctx);
         }
-        ignoring = null; applyIgnore(); // paksa pengaturan click-through ulang setelah window berubah status
       },
       openSettings: () => openSettings(),
       toggleAutoStart: () => {
@@ -153,27 +225,26 @@ if (!gotLock) {
       },
       quit: () => app.quit(),
       onMenuClosed: () => {
-        if (!win || win.isDestroyed()) return;
-        try { win.setFocusable(false); } catch {}
-        // Menu tray mengambil alih mouse di luar renderer, jadi pointer state
-        // dari sebelum menu dibuka bisa tertinggal dan mengacaukan klik berikutnya.
-        rendererOver = false;
-        hoverInside = false;
-        hoverCount = 0;
-        win.webContents.send('island:shown');
-        ignoring = null; applyIgnore(); // kembalikan klik-through sesuai kondisi kursor saat ini
-        if (win.isVisible()) {
-          win.setAlwaysOnTop(true, 'screen-saver');
-          win.moveTop();
+        for (const ctx of islandManager?.values() || []) {
+          try { ctx.window.setFocusable(false); } catch {}
+          resetIslandInteraction(ctx);
+          ctx.window.webContents.send('island:shown');
+          ctx.ignoring = null; applyIgnore(ctx);
+          if (ctx.window.isVisible()) { ctx.window.setAlwaysOnTop(true, 'screen-saver'); ctx.window.moveTop(); }
         }
       },
-      state: () => ({ visible: !!(win && !win.isDestroyed() && win.isVisible()), autoStart: !!settings.autoStart, version: app.getVersion() })
+      state: () => ({ visible: !!(islandManager?.values().some((ctx) => !ctx.window.isDestroyed() && ctx.window.isVisible())), autoStart: !!settings.autoStart, version: app.getVersion() })
     });
-    setInterval(() => { applyIgnore(); pollHover(); }, 40);
+    setInterval(() => {
+      const cursor = screen.getCursorScreenPoint();
+      for (const ctx of islandManager?.values() || []) { applyIgnore(ctx, cursor); pollHover(ctx, cursor); }
+    }, 40);
     // Game fullscreen sering merebut urutan paling atas; tegaskan lagi posisi island tiap detik
     setInterval(() => {
       // Jangan ganggu window saat sedang dipakai mengetik
-      if (win && !win.isDestroyed() && win.isVisible() && !win.isFocused() && (!settingsWin || settingsWin.isDestroyed())) { win.setAlwaysOnTop(true, 'screen-saver'); win.moveTop(); }
+      if (!settingsWin || settingsWin.isDestroyed()) for (const ctx of islandManager?.values() || []) {
+        if (!ctx.window.isDestroyed() && ctx.window.isVisible() && !ctx.window.isFocused() && !ctx.focusAllowed) { ctx.window.setAlwaysOnTop(true, 'screen-saver'); ctx.window.moveTop(); }
+      }
     }, 1000);
     helper.start((msg) => {
       if (msg && msg.type === 'audio') {
@@ -187,16 +258,25 @@ if (!gotLock) {
         windowsNotificationsStatus = msg;
         broadcast('windows-notifications:status', msg);
       }
-      if (win && !win.isDestroyed()) win.webContents.send('helper:msg', msg);
+      if (msg?.type === 'displays' && Array.isArray(msg.monitors)) {
+        const previous = islandDisplayList();
+        nativeDisplays = msg.monitors;
+        const current = islandDisplayList();
+        migrateMonitorPreferences(previous, current);
+        refreshIslandWindows();
+        broadcast('displays:changed', current);
+      }
+      sendToIslands('helper:msg', msg);
+      if (msg?.type === 'alarm-takeover') setAlarmTakeover(!!msg.active);
     }, app.getPath('userData'));
     helper.send({ cmd: 'windows-notifications', enabled: settings.notif?.captureWindows !== false });
     helper.send({ cmd: 'copy-text-config', enabled: settings.copyText?.enabled !== false, language: settings.copyText?.language || '' });
     helper.send({ cmd: 'companion-init' });
     helper.send({ cmd: 'clipboard-config', enabled: settings.clipboard?.enabled !== false, capture: settings.clipboard?.capture !== false, maxItems: settings.clipboard?.maxItems || 200 });
-    helper.send({ cmd: 'system-monitor-config', mode: 'hidden', activeTab: '', intervalMs: settings.systemMonitor?.intervalMs || 1000, processCount: settings.systemMonitor?.processCount || 5, processMonitoring: settings.systemMonitor?.processMonitoring !== false, sort: settings.systemMonitor?.sort || 'cpu', compactMetric: settings.systemMonitor?.compactMetric || 'cpu', metrics: settings.systemMonitor?.metrics || {}, alertsEnabled: settings.systemMonitor?.alertsEnabled === true, cpuThreshold: settings.systemMonitor?.cpuThreshold || 95, ramThreshold: settings.systemMonitor?.ramThreshold || 90 });
-    screen.on('display-metrics-changed', placeWindow);
-    screen.on('display-added', placeWindow);
-    screen.on('display-removed', placeWindow);
+    sharedServices.updateSystemMonitor(settings.systemMonitor);
+    screen.on('display-metrics-changed', () => refreshIslandWindows());
+    screen.on('display-removed', () => refreshIslandWindows());
+    screen.on('display-added', (event, display) => handleDisplayAdded(event, display));
     setupAutoUpdates();
   });
 }
@@ -227,51 +307,69 @@ function setupAutoUpdates() {
   setInterval(check, 4 * 60 * 60 * 1000);
 }
 
-app.on('window-all-closed', () => app.quit());
-app.on('before-quit', () => { helper.stop(); trayIcon.destroy(); });
+app.on('window-all-closed', () => { if (process.platform !== 'win32') app.quit(); });
+app.on('before-quit', () => { islandManager?.closeAll(); helper.stop(); trayIcon.destroy(); });
 
-// ---------- Click-through ----------
-// Window tembus klik tidak bisa menerima drop file dari Explorer. Karena itu main process
-// memantau posisi kursor: island aktif jika renderer melaporkan pointer di atasnya
-// ATAU kursor berada di dalam area island (termasuk saat sedang menyeret file).
-let rendererOver = false;
-let ignoring = true;
-let lastIgnoreAt = 0;
-let islandRect = null; // koordinat relatif window (DIP)
-
-function cursorInsideIsland() {
-  if (!islandRect || !win || win.isDestroyed()) return false;
-  const p = screen.getCursorScreenPoint();
-  const b = win.getBounds();
-  const x = p.x - b.x, y = p.y - b.y;
-  return x >= islandRect.x && x <= islandRect.x + islandRect.w && y >= islandRect.y - 2 && y <= islandRect.y + islandRect.h;
+// ---------- Per-window hit testing and focus ----------
+function resetIslandInteraction(context) {
+  context.rendererOver = false; context.hoverInside = false; context.hoverCount = 0;
 }
 
-function applyIgnore() {
-  if (!win || win.isDestroyed()) return;
-  const want = !(rendererOver || cursorInsideIsland());
-  // Status dikirim ulang berkala: kalau status sebenarnya di window sudah berbeda (mis. setelah disembunyikan/ditampilkan dari tray), klik tetap bisa diteruskan
-  const stale = Date.now() - lastIgnoreAt > 1000;
-  if (want === ignoring && !stale) return;
-  ignoring = want;
-  lastIgnoreAt = Date.now();
-  if (want) win.setIgnoreMouseEvents(true, { forward: true });
-  else win.setIgnoreMouseEvents(false);
+function cursorInsideIsland(context, cursor = screen.getCursorScreenPoint()) {
+  if (!context.rect || context.window.isDestroyed() || !context.window.isVisible() || context.serviceOnly) return false;
+  const p = cursor;
+  const b = context.window.getBounds();
+  const x = p.x - b.x, y = p.y - b.y, r = context.rect;
+  return x >= r.x && x <= r.x + r.w && y >= r.y - 2 && y <= r.y + r.h;
 }
 
-// Hover dideteksi dari posisi kursor (bukan hanya event mouse di window), sehingga tetap bekerja
-// ketika game fullscreen sedang memegang mouse atau window island tidak menerima event.
-let hoverInside = false;
-let hoverCount = 0;
-function pollHover() {
-  if (!win || win.isDestroyed()) return;
-  if (cursorInsideIsland()) {
-    hoverCount++;
-    if (!hoverInside && hoverCount >= 2) { hoverInside = true; win.webContents.send('island:hover', true); }
+function applyIgnore(context, cursor) {
+  if (!context || context.window.isDestroyed() || !context.window.isVisible() || context.serviceOnly) return;
+  const want = !(context.rendererOver || cursorInsideIsland(context, cursor));
+  if (want === context.ignoring && Date.now() - context.lastIgnoreAt <= 1000) return;
+  context.ignoring = want; context.lastIgnoreAt = Date.now();
+  if (want) context.window.setIgnoreMouseEvents(true, { forward: true });
+  else context.window.setIgnoreMouseEvents(false);
+}
+
+function pollHover(context, cursor) {
+  if (!context || context.window.isDestroyed() || !context.window.isVisible() || context.serviceOnly) return;
+  if (cursorInsideIsland(context, cursor)) {
+    context.hoverCount++;
+    if (!context.hoverInside && context.hoverCount >= 2) { context.hoverInside = true; context.window.webContents.send('island:hover', true); }
   } else {
-    hoverCount = 0;
-    if (hoverInside) { hoverInside = false; win.webContents.send('island:hover', false); }
+    context.hoverCount = 0;
+    if (context.hoverInside) { context.hoverInside = false; context.window.webContents.send('island:hover', false); }
   }
+}
+
+function islandContext(sender) {
+  return islandManager?.values().find((context) => context.window.webContents === sender) || null;
+}
+
+function sendToIslands(channel, payload) {
+  islandManager?.broadcast(channel, payload);
+}
+
+function setAlarmTakeover(active, payload = null) {
+  alarmTakeover = active ? payload : null;
+  refreshIslandWindows();
+  sendToIslands('alarm:takeover', { active, alarm: payload });
+}
+
+function routeIslandHelperCommand(sender, command) {
+  if (command?.cmd === 'audio-watch') {
+    sharedServices.setAudio(sender.id, command.mode || 'off');
+  } else if (command?.cmd === 'system-monitor-config') {
+    sharedServices.setSystemMonitor(sender.id, command, settings.systemMonitor);
+  } else helper.send(command);
+}
+
+function releaseIslandRequests(context) {
+  if (context.requestsReleased) return;
+  context.requestsReleased = true;
+  const senderId = context.senderId;
+  sharedServices.release(senderId, settings.systemMonitor);
 }
 
 // ---------- Window Pengaturan (terpisah dari island) ----------
@@ -296,7 +394,7 @@ function openSettings(page) {
   });
   // Island normally sits at the screen-saver topmost level. Lower it while
   // Settings is open so it cannot cover the separate configuration window.
-  if (win && !win.isDestroyed()) win.setAlwaysOnTop(false);
+  for (const ctx of islandManager?.values() || []) if (!ctx.window.isDestroyed()) ctx.window.setAlwaysOnTop(false);
   settingsWin.setMenuBarVisibility(false);
   settingsWin.webContents.on('console-message', (_event, level, message, line, sourceId) => {
     if (level >= 2) console.error(`[settings renderer] ${message} (${sourceId}:${line})`);
@@ -314,7 +412,7 @@ function openSettings(page) {
   });
   settingsWin.on('closed', () => {
     settingsWin = null;
-    if (win && !win.isDestroyed()) { win.setAlwaysOnTop(true, 'screen-saver'); win.moveTop(); }
+    for (const ctx of islandManager?.values() || []) if (!ctx.serviceOnly) revealIsland(ctx);
   });
 }
 
@@ -323,18 +421,36 @@ tray.register(ipcMain, broadcast);
 shortcuts.register(ipcMain, broadcast);
 aiMain.register(ipcMain);
 translateMain.register(ipcMain, { getApiKey: aiMain.getKey });
-ipcMain.on('island:set-ignore', (_e, ignore) => { rendererOver = !ignore; applyIgnore(); });
-ipcMain.on('island:rect', (_e, r) => { islandRect = r; applyIgnore(); pollHover(); });
+ipcMain.on('island:set-ignore', (e, ignore) => { const ctx = islandContext(e.sender); if (ctx) { ctx.rendererOver = !ignore; applyIgnore(ctx); } });
+ipcMain.on('island:rect', (e, r) => { const ctx = islandContext(e.sender); if (ctx) { ctx.rect = r; applyIgnore(ctx); pollHover(ctx); } });
 
-ipcMain.on('island:focus', () => { if (win) { win.setFocusable(true); win.focus(); } });
-ipcMain.on('island:allow-focus', () => { if (win) win.setFocusable(true); }); // diizinkan aktif sebelum kolom teks diklik
-ipcMain.on('island:release-focus', () => { if (win) { win.blur(); win.setFocusable(false); } });
+ipcMain.on('island:focus', (e) => { const ctx = islandContext(e.sender); if (ctx) { ctx.focusAllowed = true; ctx.window.setFocusable(true); ctx.window.focus(); } });
+ipcMain.on('island:allow-focus', (e) => { const ctx = islandContext(e.sender); if (ctx) { ctx.focusAllowed = true; ctx.window.setFocusable(true); } });
+ipcMain.on('island:release-focus', (e) => { const ctx = islandContext(e.sender); if (ctx) { ctx.focusAllowed = false; ctx.window.blur(); ctx.window.setFocusable(false); } });
+ipcMain.handle('island:instance', (e) => {
+  const ctx = islandContext(e.sender);
+  return { id: ctx?.id || '', primary: !!ctx?.display.primary, alarmLeader: !!ctx && ctx === islandManager?.primary(), alarmTakeover: { active: !!alarmTakeover, alarm: alarmTakeover } };
+});
+ipcMain.handle('displays:list', () => islandDisplayList().map((display) => ({
+  ...display,
+  visible: !!islandManager?.isVisibleDisplay(display.id)
+})));
+ipcMain.on('alarm:state', (e, state) => {
+  const ctx = islandContext(e.sender);
+  if (!ctx || ctx !== islandManager?.primary()) return;
+  setAlarmTakeover(!!state?.active, state?.alarm || null);
+});
+ipcMain.on('alarm:action', (_e, action) => {
+  setAlarmTakeover(false);
+  sendToIslands('alarm:action', action);
+});
 
-ipcMain.handle('settings:get', () => settings);
+ipcMain.handle('settings:get', () => settings && typeof settings === 'object' ? settings : { ...DEFAULT_SETTINGS, display: normalizeDisplayConfig(DEFAULT_SETTINGS.display) });
 
 ipcMain.handle('settings:set', (_e, patch) => {
-  settings = { ...settings, ...patch };
+  settings = mergeSettings(settings, patch, DEFAULT_SETTINGS);
   saveSettings();
+  if (Object.prototype.hasOwnProperty.call(patch, 'display')) refreshIslandWindows();
   applyAutoStart();
   broadcast('settings:changed', settings); // island dan window pengaturan ikut diperbarui
   if (patch.notif && Object.prototype.hasOwnProperty.call(patch.notif, 'captureWindows')) {
@@ -344,8 +460,8 @@ ipcMain.handle('settings:set', (_e, patch) => {
     helper.send({ cmd: 'copy-text-config', enabled: settings.copyText.enabled !== false, language: settings.copyText.language || '' });
   }
   if (patch.clipboard) helper.send({ cmd: 'clipboard-config', enabled: settings.clipboard?.enabled !== false, capture: settings.clipboard?.capture !== false, maxItems: settings.clipboard?.maxItems || 200 });
-  if (patch.systemMonitor) helper.send({ cmd: 'system-monitor-config', intervalMs: settings.systemMonitor.intervalMs, processCount: settings.systemMonitor.processCount, processMonitoring: settings.systemMonitor.processMonitoring, sort: settings.systemMonitor.sort, compactMetric: settings.systemMonitor.compactMetric, metrics: settings.systemMonitor.metrics, alertsEnabled: settings.systemMonitor.alertsEnabled, cpuThreshold: settings.systemMonitor.cpuThreshold, ramThreshold: settings.systemMonitor.ramThreshold });
-  return settings;
+  if (patch.systemMonitor) sharedServices.updateSystemMonitor(settings.systemMonitor);
+  return settings && typeof settings === 'object' ? settings : { ...DEFAULT_SETTINGS, display: normalizeDisplayConfig(DEFAULT_SETTINGS.display) };
 });
 
 ipcMain.handle('windows-notifications:status', () => windowsNotificationsStatus);
@@ -378,7 +494,10 @@ ipcMain.handle('app:check-updates', async () => {
 });
 ipcMain.on('app:open-data', () => shell.openPath(app.getPath('userData')));
 
-ipcMain.on('helper:send', (_e, obj) => helper.send(obj));
+ipcMain.on('helper:send', (event, obj) => {
+  if (islandContext(event.sender)) routeIslandHelperCommand(event.sender, obj);
+  else helper.send(obj);
+});
 ipcMain.handle('helper:status', () => helper.status());
 
 ipcMain.handle('translate:defaults', () => ({

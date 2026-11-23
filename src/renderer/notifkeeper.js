@@ -1,3 +1,5 @@
+import { isAlarmLeader } from './alarmkeeper.js';
+
 // Notifikasi internal island: timer, fokus, alarm, dan kalender (AI dan sistem menyusul). Disimpan lokal.
 const load = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
@@ -12,11 +14,13 @@ export const SOURCES = {
 };
 
 export const notifs = load('notifs', []); // terbaru di depan
+window.api?.islandInstance?.().then((instance) => { if (instance?.alarmLeader) window.api.reportNotifCount(notifs.length); }).catch(() => {});
+window.api?.onIslandRole?.((role) => { if (role?.alarmLeader) window.api?.reportNotifCount?.(notifs.length); });
 let limit = 50;
 let arrivedAt = 0;
 const subs = new Set();
 export const onNotifs = (f) => { subs.add(f); return () => subs.delete(f); };
-const emit = () => { subs.forEach((f) => f()); window.api?.reportNotifCount?.(notifs.length); };
+const emit = () => { subs.forEach((f) => f()); if (isAlarmLeader()) window.api?.reportNotifCount?.(notifs.length); };
 const persist = () => save('notifs', notifs);
 const prune = () => { if (notifs.length > limit) notifs.splice(limit); };
 export const lastArrival = () => arrivedAt;
@@ -55,18 +59,26 @@ export function clearAll() { const n = notifs.length; notifs.length = 0; persist
 
 // ---- Sumber peristiwa yang sudah ada di island ----
 document.addEventListener('island:notify', (e) => {
+  if (!isAlarmLeader()) return;
   const d = e.detail || {};
   addNotif({ source: 'calendar', title: d.title || 'Pengingat', body: d.sub || '', color: d.color });
 });
 document.addEventListener('island:alert', (e) => {
+  if (!isAlarmLeader()) return;
   const d = e.detail || {};
   if (!d.title) return;
   const source = d.sub === 'focus' ? 'focus' : d.sub === 'alarm' ? 'alarm' : 'timer';
   addNotif({ source, title: d.title, tab: d.tab || null, sub: d.sub || null });
 });
-document.addEventListener('island:system-alert', (e) => { const d=e.detail||{}; if(d.title) addNotif({source:'system',title:d.title,body:d.body||''}); });
+document.addEventListener('island:system-alert', (e) => { if (!isAlarmLeader()) return; const d=e.detail||{}; if(d.title) addNotif({source:'system',title:d.title,body:d.body||''}); });
 
 window.api?.onHelper?.((m) => {
+  if (!isAlarmLeader()) return;
   if (m?.type !== 'windows-notification' || !m.title) return;
   addNotif({ source: 'windows', app: m.app || 'Windows', title: m.title, body: m.body || '' });
+});
+window.addEventListener('storage', (event) => {
+  if (event.key !== 'notifs') return;
+  notifs.splice(0, notifs.length, ...load('notifs', []));
+  emit();
 });

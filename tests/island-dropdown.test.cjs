@@ -26,7 +26,7 @@ test('dropdown popup stays in the Island hit-test region and above clipped conte
     read('src/renderer/app.js'), read('src/main.js'), read('src/renderer/styles.css')
   ]);
   assert.match(renderer, /island-dropdown-portal \.island-dropdown-menu:not\(\[hidden\]\)/);
-  assert.match(main, /ipcMain\.on\('island:rect',[^\n]*applyIgnore\(\); pollHover\(\)/);
+  assert.match(main, /ipcMain\.on\('island:rect',[^\n]*islandContext\(e\.sender\)[^\n]*applyIgnore\(ctx\); pollHover\(ctx\)/);
   assert.match(css, /#island-dropdown-portal\s*\{[^}]*z-index:\s*10000/);
   assert.match(css, /\.island-dropdown-menu\s*\{[^}]*pointer-events:\s*auto/);
 });
@@ -35,4 +35,26 @@ test('Media session trigger shrinks to the space beside the source badge', async
   const css = await read('src/renderer/styles.css');
   assert.match(css, /\.island-dropdown-trigger\.m-session\s*\{[^}]*flex:\s*1 1 0%[^}]*min-width:\s*0[^}]*max-width:\s*180px/);
   assert.match(css, /\.m-src-row\s*\{[^}]*min-width:\s*0[^}]*max-width:\s*100%/);
+});
+
+test('settings renderer retains a valid settings object when an update response is empty', async () => {
+  const source = await read('src/settings-window/settings.js');
+  assert.match(source, /async function save\(patch\)[\s\S]*if \(saved && typeof saved === 'object'\) S = saved;[\s\S]*return S;/);
+  assert.match(source, /if \(!s \|\| typeof s !== 'object'\)[\s\S]*ignored empty settings update/);
+  assert.match(source, /if \(!S \|\| typeof S !== 'object'\) S = \{ language: 'id', accent: '#ff9f0a' \};/);
+  assert.match(source, /Unable to load display information: \$\{error\?\.message/);
+});
+
+test('Island tab actions are captured on pointerup without duplicate click activation', async () => {
+  const source = await read('src/renderer/app.js');
+  assert.match(source, /tabbar\.addEventListener\('pointerup',[\s\S]*activateTabbarTarget\(e\)/);
+  assert.match(source, /lastPointerActivation\.target === e\.target\.closest\('button'\)[\s\S]*return;/);
+  assert.match(source, /tabbar\.addEventListener\('click',[\s\S]*activateTabbarTarget\(e\)/);
+});
+
+test('Island windows are shown after renderer load and startup screen reconciliation', async () => {
+  const source = await read('src/main.js');
+  assert.match(source, /island\.webContents\.on\('did-finish-load',[\s\S]*revealIsland\(context\)/);
+  assert.match(source, /setTimeout\(\(\) => refreshIslandWindows\(\), 250\)/);
+  assert.match(source, /function revealIsland\(context\)[\s\S]*showInactive\(\)[\s\S]*moveTop\(\)/);
 });

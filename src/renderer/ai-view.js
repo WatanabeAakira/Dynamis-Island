@@ -281,7 +281,7 @@ export function renderAi(c) {
   });
   q('#ai-gear').addEventListener('click', () => window.api.openSettings('ai'));
 
-  const api = { refresh, sendText: (text) => { if (!busy && typeof text === 'string') { input.value = text.slice(0, 800); q('#ai-form').requestSubmit(); } } };
+  const api = { refresh, restore, sendText: (text) => { if (!busy && typeof text === 'string') { input.value = text.slice(0, 800); q('#ai-form').requestSubmit(); } } };
   active = api;
   function refresh() {
     if (!root.isConnected) return;
@@ -298,3 +298,8 @@ export function renderAi(c) {
 
 // Pengaturan dan perubahan kunci dari window lain
 window.api.onSettings((s) => { S = s; if (active) active.refresh(); });
+window.addEventListener('storage', (event) => {
+  if (event.key !== LIMIT_KEY || busy || !active) return;
+  loadHistory();
+  active.restore();
+});

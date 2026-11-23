@@ -1,5 +1,6 @@
 // Data kalender (event) dan mesin pengingat. Event disimpan lokal di localStorage.
 import { playSound } from './sound.js';
+import { isAlarmLeader } from './alarmkeeper.js';
 
 const pad = (n) => String(n).padStart(2, '0');
 const load = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } };
@@ -69,6 +70,7 @@ function notify(e) {
 }
 
 export function checkEvents(now = Date.now()) {
+  if (!isAlarmLeader()) return;
   let changed = false;
   for (const e of events) {
     if (e.remind < 0) continue;
@@ -85,3 +87,8 @@ export function checkEvents(now = Date.now()) {
 }
 
 setInterval(() => checkEvents(), 5000);
+
+window.addEventListener('storage', (event) => {
+  if (event.key === 'events') { events.splice(0, events.length, ...load('events', [])); emit(); }
+  else if (event.key === 'events.fired') fired = load('events.fired', {});
+});
