@@ -1,6 +1,7 @@
 // Tab Audio Control (desain baru): volume sistem, perangkat output, dan daftar aplikasi yang sedang bersuara.
 import { audio, onAudio, watch, setMasterVolume, setMasterMute, setAppVolume, setAppMute } from './audio-link.js';
 import { makeSlider } from './slider.js';
+import { createIslandDropdown } from './dropdown.js';
 
 const island = document.getElementById('island');
 const svg = (b) => `<svg viewBox="0 0 24 24" aria-hidden="true">${b}</svg>`;
@@ -74,6 +75,7 @@ export function renderAudio(c) {
 
   const q = (s) => c.querySelector(s);
   const root = q('.au'), list = q('#au-list'), empty = q('#au-empty');
+  const deviceDropdown = createIslandDropdown(q('#au-dev'), { className: 'au-dn', ariaLabel: 'Pilih perangkat output' });
   const msl = makeSlider(q('#au-msl'), {
     onInput: (v) => { setMasterVolume(v); paintSys(v, audio.master && audio.master.mute); }
   });
@@ -226,6 +228,7 @@ export function renderAudio(c) {
         }));
       }
       q('#au-dev').value = m.id || '';
+      deviceDropdown.refresh();
       if (!msl.busy()) { msl.set(m.vol); paintSys(m.vol, m.mute); }
       else paintSys(m.vol, m.mute);
     }
@@ -293,6 +296,7 @@ export function renderAudio(c) {
     window.api.audioSetOutput(id).then((result) => {
       if (!result || !result.ok) {
         q('#au-dev').value = audio.master && audio.master.id || '';
+        deviceDropdown.refresh();
         showStatus(result && result.error || 'Perangkat output tidak dapat diganti.', true);
       }
     }).catch(() => showStatus('Perangkat output tidak dapat diganti.', true));

@@ -2,7 +2,7 @@
   "name": "dynamis-island",
   "productName": "Dynamis Island",
   "appId": "com.dynamis.island",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "A Windows dynamic island for media controls, timers, weather, notifications, and productivity tools.",
   "main": "src/main.js",
   "scripts": {
@@ -59,6 +59,8 @@
     }
   },
   "dependencies": {
-    "electron-updater": "^6.8.11"
+    "electron-updater": "^6.8.11",
+    "kuroshiro": "1.2.1",
+    "kuroshiro-analyzer-kuromoji": "1.1.0"
   }
 }

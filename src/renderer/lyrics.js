@@ -1,6 +1,6 @@
 // State lirik, panel 3 baris untuk tab Media, dan mini lyrics untuk mode collapse.
 
-export const L = { mode: false, key: '', status: 'idle', lines: [], synced: false, source: '', flash: '' };
+export const L = { mode: false, key: '', status: 'idle', lines: [], synced: false, source: '', flash: '', displayMode: 'original' };
 const subs = new Set();
 let token = 0;
 let lastTrack = null;
@@ -10,6 +10,16 @@ export const onLyrics = (f) => { subs.add(f); return () => subs.delete(f); };
 const LEAD_MS = 120; // sedikit lebih awal supaya terasa pas
 let offsetMs = 0;     // penyesuaian dari Pengaturan (positif = lirik lebih awal)
 export const setLyricsOffset = (ms) => { offsetMs = Number(ms) || 0; };
+
+export function setLyricsDisplaySettings(settings = {}) {
+  const displayMode = ['original', 'romaji', 'both'].includes(settings.lyricsDisplayMode) ? settings.lyricsDisplayMode : 'original';
+  const system = ['hepburn', 'nippon', 'passport'].includes(settings.romajiSystem) ? settings.romajiSystem : 'hepburn';
+  if (L.displayMode === displayMode && L.romajiSystem === system) return;
+  L.displayMode = displayMode;
+  L.romajiSystem = system;
+  if (lastTrack && L.status !== 'idle') reloadLyrics();
+  else emit();
+}
 
 // Dipanggil tiap ada state media baru
 export function trackChanged(st) {
@@ -158,7 +168,18 @@ export function createPanel(root, opts = {}) {
   let lastIdx = -99, lastKey = '', lastLines = null, lastFlash = '', spans = [], curLine = null, activeWord = -1;
   let slotLines = {}, lastSeekable = null;
 
-  const setSimple = (el, line) => { el.textContent = line ? line.text : ''; };
+  const setSimple = (el, line) => {
+    el.replaceChildren();
+    if (!line) return;
+    const original = document.createElement('span');
+    original.className = 'l-original';
+    original.textContent = line.text || '';
+    el.append(original);
+    if (L.displayMode === 'both' && line.romaji && line.romaji !== line.text) {
+      const romaji = document.createElement('span');
+      romaji.className = 'l-romaji'; romaji.textContent = line.romaji; el.append(romaji);
+    } else if (L.displayMode === 'romaji') original.textContent = line.romaji || line.text || '';
+  };
 
   function slide(direction = 1) {
     track.style.transition = 'none';
@@ -173,19 +194,26 @@ export function createPanel(root, opts = {}) {
   function setCur(line) {
     curLine = line;
     spans = []; activeWord = -1;
+    cur.replaceChildren();
     if (!line) { cur.textContent = '\u266A'; return; }
-    if (line.words && line.words.length) {
-      cur.textContent = '';
+    const original = document.createElement('span');
+    original.className = 'l-original';
+    cur.append(original);
+    if (L.displayMode !== 'romaji' && line.words && line.words.length) {
       for (const w of line.words) {
         const s = document.createElement('span');
         s.className = 'w';
         s.textContent = w.text;
         s.style.setProperty('--f', '0%');
-        cur.appendChild(s);
+        original.appendChild(s);
         spans.push(s);
       }
     } else {
-      cur.textContent = line.text || '\u266A';
+      original.textContent = L.displayMode === 'romaji' ? (line.romaji || line.text || '\u266A') : (line.text || '\u266A');
+    }
+    if (L.displayMode === 'both' && line.romaji && line.romaji !== line.text) {
+      const romaji = document.createElement('span');
+      romaji.className = 'l-romaji'; romaji.textContent = line.romaji; cur.append(romaji);
     }
   }
 
@@ -220,7 +248,7 @@ export function createPanel(root, opts = {}) {
         if (!first && Math.abs(delta) === 1) slide(Math.sign(delta));
       }
       // Karaoke per kata (Enhanced LRC)
-      if (curLine && curLine.words) {
+      if (curLine && curLine.words && L.displayMode !== 'romaji') {
         const t = pos + LEAD_MS + offsetMs;
         const wordIndex = activeWordAt(curLine.words, t);
         if (wordIndex !== activeWord) {
@@ -235,6 +263,7 @@ export function createPanel(root, opts = {}) {
           const duration = Math.max(1, (word.end ?? word.t + 150) - word.t);
           const fill = Math.round(Math.max(0, Math.min(1, (t - word.t) / duration)) * 100);
           if (spans[wordIndex].style.getPropertyValue('--f') !== `${fill}%`) spans[wordIndex].style.setProperty('--f', `${fill}%`);
+          spans[wordIndex].classList.toggle('done', t >= word.end);
         }
       }
     }
@@ -247,6 +276,10 @@ export function initMini({ getPos }) {
   const island = document.getElementById('island');
   const lyric = document.getElementById('pill-lyric');
   const ctx = document.createElement('canvas').getContext('2d');
+  const originalEl = document.createElement('span');
+  const romajiEl = document.createElement('span');
+  originalEl.className = 'mini-original'; romajiEl.className = 'mini-romaji';
+  lyric.replaceChildren(originalEl, romajiEl);
   const MIN_W = 188, MAX_W = 440;
   let armed = false, raf = 0, lastText = null;
 
@@ -281,11 +314,18 @@ export function initMini({ getPos }) {
     raf = requestAnimationFrame(tick);
     const idx = indexAt(getPos());
     const line = idx >= 0 ? L.lines[idx] : null;
-    const text = (line && line.text.trim()) || '\u266A';
+    const original = (line && line.text.trim()) || '\u266A';
+    const romaji = line?.romaji || original;
+    const display = L.displayMode === 'romaji' ? romaji : original;
+    const showRomaji = L.displayMode === 'both' && romaji !== original;
+    const text = `${display}\0${showRomaji ? romaji : ''}`;
     if (text === lastText) return;
     lastText = text;
-    lyric.textContent = text;
-    island.style.setProperty('--mini-w', widthFor(text) + 'px');
+    originalEl.textContent = display;
+    romajiEl.textContent = showRomaji ? romaji : '';
+    romajiEl.hidden = !showRomaji;
+    const measured = showRomaji ? (ctx.measureText(display).width > ctx.measureText(romaji).width ? display : romaji) : display;
+    island.style.setProperty('--mini-w', widthFor(measured) + 'px');
     lyric.classList.remove('swap');
     void lyric.offsetWidth;
     lyric.classList.add('swap');

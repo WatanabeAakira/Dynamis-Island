@@ -1,4 +1,7 @@
+import { createIslandDropdown } from './dropdown.js';
+
 let unsubscribe = null;
+let languageDropdown = null;
 let activeStatus = 'Ready to Extract Text';
 let activeProcessing = false;
 let activeError = '';
@@ -8,6 +11,8 @@ let selectedLanguage = '';
 let enabled = true;
 
 export function renderCopyText(container, settings) {
+  languageDropdown?.destroy();
+  languageDropdown = null;
   enabled = settings.copyText?.enabled !== false;
   selectedLanguage = settings.copyText?.language || '';
 
@@ -53,6 +58,10 @@ export function renderCopyText(container, settings) {
         <pre id="copyTextPreview"></pre>
       </section>
     </div>`;
+
+  languageDropdown = createIslandDropdown(container.querySelector('#copyTextLanguage'), {
+    className: 'copy-text-language-select', ariaLabel: 'OCR language'
+  });
 
   const selectButton = container.querySelector('#copyTextSelect');
   selectButton?.addEventListener('click', () => window.api.helperSend({ cmd: 'copy-text-start' }));
@@ -145,6 +154,7 @@ function renderLanguageOptions(container) {
     await window.api.setSettings({ copyText: { enabled, language: selectedLanguage } });
     window.api.helperSend({ cmd: 'copy-text-config', enabled, language: selectedLanguage });
   };
+  languageDropdown?.refresh();
 }
 
 function escapeHtml(value) {

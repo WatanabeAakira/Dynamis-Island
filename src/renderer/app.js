@@ -317,9 +317,16 @@ onAnyTimer(tick);
 // ---------- Laporkan area island ke main process (untuk deteksi kursor saat drag) ----------
 const reportRect = () => {
   const r = island.getBoundingClientRect();
-  window.api.reportRect({ x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) });
+  const overlays = [...document.querySelectorAll('#island-dropdown-portal .island-dropdown-menu:not([hidden])')]
+    .map((menu) => menu.getBoundingClientRect());
+  const left = Math.min(r.left, ...overlays.map((rect) => rect.left));
+  const top = Math.min(r.top, ...overlays.map((rect) => rect.top));
+  const right = Math.max(r.right, ...overlays.map((rect) => rect.right));
+  const bottom = Math.max(r.bottom, ...overlays.map((rect) => rect.bottom));
+  window.api.reportRect({ x: Math.round(left), y: Math.round(top), w: Math.round(right - left), h: Math.round(bottom - top) });
 };
 new ResizeObserver(reportRect).observe(island);
+document.addEventListener('island:dropdownchange', reportRect);
 reportRect();
 
 // ---------- Seret file ke island ----------

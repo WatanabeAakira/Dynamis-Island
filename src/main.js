@@ -29,6 +29,8 @@ const DEFAULT_SETTINGS = {
   apps: { view: 'grid', size: 'md', style: 'default', sort: 'manual', favCount: 4, favFirst: true, compactLabels: false, compactMode: 'icons' },
   weather: null,        // { loc, auto, units, recent }
   lyricsMode: false,    // tampilan lirik tetap aktif setelah aplikasi dibuka ulang
+  lyricsDisplayMode: 'original',
+  romajiSystem: 'hepburn',
   collapseDelay: 350,   // ms sebelum island menutup setelah pointer keluar
   openOnHover: true,    // false = harus klik dulu untuk membuka
   autoFullClosed: true, // sembunyikan island saat aplikasi foreground memenuhi layar
@@ -322,7 +324,7 @@ shortcuts.register(ipcMain, broadcast);
 aiMain.register(ipcMain);
 translateMain.register(ipcMain, { getApiKey: aiMain.getKey });
 ipcMain.on('island:set-ignore', (_e, ignore) => { rendererOver = !ignore; applyIgnore(); });
-ipcMain.on('island:rect', (_e, r) => { islandRect = r; });
+ipcMain.on('island:rect', (_e, r) => { islandRect = r; applyIgnore(); pollHover(); });
 
 ipcMain.on('island:focus', () => { if (win) { win.setFocusable(true); win.focus(); } });
 ipcMain.on('island:allow-focus', () => { if (win) win.setFocusable(true); }); // diizinkan aktif sebelum kolom teks diklik
@@ -415,9 +417,9 @@ ipcMain.handle('translate:pick-image', async (event) => {
   return sent ? { ok: true } : { ok: false, error: 'The OCR helper is not running. Restart Dynamis Island and retry.' };
 });
 
-ipcMain.handle('lyrics:get', (_e, q) => lyrics.get(q, settings.lyricsDir));
-ipcMain.handle('lyrics:import', (_e, q) => lyrics.importFile(q));
-ipcMain.handle('lyrics:import-text', (_e, q, text, name) => lyrics.importText(q, text, name));
+ipcMain.handle('lyrics:get', (_e, q) => lyrics.get(q, settings.lyricsDir, settings.lyricsDisplayMode, settings.romajiSystem));
+ipcMain.handle('lyrics:import', (_e, q) => lyrics.importFile(q, settings.lyricsDisplayMode, settings.romajiSystem));
+ipcMain.handle('lyrics:import-text', (_e, q, text, name) => lyrics.importText(q, text, name, settings.lyricsDisplayMode, settings.romajiSystem));
 const iconCache = new Map();
 ipcMain.handle('audio:icon', async (_e, exe) => {
   if (typeof exe !== 'string' || !exe) return null;

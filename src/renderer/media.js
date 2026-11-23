@@ -3,8 +3,9 @@ import { setArt } from './palette.js';
 import { speaker } from './audio-view.js';
 import { audio, onAudio, watch, setMasterVolume, setMasterMute } from './audio-link.js';
 import { makeSlider } from './slider.js';
+import { createIslandDropdown } from './dropdown.js';
 import { showTrackToast } from './toast.js';
-import { L, trackChanged, setLyricsMode, createPanel, initMini } from './lyrics.js';
+import { L, trackChanged, setLyricsMode, setLyricsDisplaySettings, createPanel, initMini } from './lyrics.js';
 
 const svg = (b) => `<svg viewBox="0 0 24 24" aria-hidden="true">${b}</svg>`;
 const ICON = {
@@ -115,7 +116,14 @@ function paintPill() {
 
 export async function initMedia() {
   initMini({ getPos: livePos });
-  window.api.getSettings().then((s) => { if (s.lyricsMode) setLyricsMode(true, false); });
+  window.api.getSettings().then((s) => {
+    setLyricsDisplaySettings(s);
+    if (s.lyricsMode) setLyricsMode(true, false);
+  });
+  window.api.onSettings((s) => {
+    setLyricsDisplaySettings(s);
+    if (L.mode !== !!s.lyricsMode) setLyricsMode(!!s.lyricsMode, false);
+  });
   window.api.onHelper(onMsg);
   const s = await window.api.helperStatus();
   if (s && s.error) onMsg({ type: 'error', message: s.error });
@@ -176,6 +184,7 @@ export function renderMedia(container) {
 
   const $ = (id) => container.querySelector(id);
   const root = $('#m-root'), bar = $('#m-bar'), sessionPicker = $('#m-session');
+  const sessionDropdown = createIslandDropdown(sessionPicker, { className: 'm-session', ariaLabel: 'Pilih sesi media' });
   const el = {
     art: $('#m-art'), title: $('#m-title'), artist: $('#m-artist'), album: $('#m-album'),
     src: $('#m-src'), wave: $('#m-wave'), cur: $('#m-cur'), dur: $('#m-dur'),
@@ -217,6 +226,7 @@ export function renderMedia(container) {
       sessionPicker.hidden = sessions.length < 2;
       sessionPicker.value = st.selectedSessionId || st.sessionId || '';
     }
+    sessionDropdown.refresh();
     if (!has) return;
 
     setMq(el.title, st.title || 'Tanpa judul');
