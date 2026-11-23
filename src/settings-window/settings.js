@@ -303,6 +303,20 @@ function pageClock(root) {
 }
 
 function pageLyrics(root) {
+  const displayMode = S.lyricsDisplayMode || 'original';
+  const system = S.romajiSystem || 'hepburn';
+  const romanizationRow = row('Romanization System', 'Dipakai untuk lirik Jepang saat mode Romaji aktif.', segmented([
+    ['hepburn', 'Hepburn'], ['nippon', 'Nippon-shiki'], ['passport', 'Passport-shiki']
+  ], system, (v) => save({ romajiSystem: v })));
+  romanizationRow.hidden = !['romaji', 'both'].includes(displayMode);
+  romanizationRow.style.display = romanizationRow.hidden ? 'none' : '';
+  const displayRow = row('Lyrics Display Mode', 'Pilih tampilan lirik Jepang di tab Media dan Mini Lyrics.', segmented([
+    ['original', 'Original Only'], ['romaji', 'Romaji Only'], ['both', 'Original + Romaji']
+  ], displayMode, async (v) => {
+    romanizationRow.hidden = !['romaji', 'both'].includes(v);
+    romanizationRow.style.display = romanizationRow.hidden ? 'none' : '';
+    await save({ lyricsDisplayMode: v });
+  }));
   const dirDesc = h('small', {}, '');
   const dirBtns = h('div', { class: 'rc' });
   const paintDir = () => {
@@ -333,6 +347,8 @@ function pageLyrics(root) {
 
   root.append(
     card(
+      displayRow,
+      romanizationRow,
       h('div', { class: 'row' }, h('div', { class: 'rt' }, h('b', {}, 'Folder lirik tambahan'), dirDesc), dirBtns),
       row('Penyesuaian waktu lirik', 'Berlaku untuk semua lagu. Nilai positif membuat lirik muncul lebih awal, nilai negatif lebih lambat. Pakai ini jika lirik terasa selalu terlambat atau terlalu cepat.',
         stepper({ value: S.lyricsOffset || 0, min: -5000, max: 5000, step: 100, unit: 'ms' }, (v) => save({ lyricsOffset: v })))

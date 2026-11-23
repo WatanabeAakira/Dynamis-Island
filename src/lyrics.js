@@ -2,6 +2,7 @@ const { net, dialog, app, shell } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { parseLrc } = require('./lyrics-parser');
+const { romanizeLines } = require('./romaji');
 
 const BASE = 'https://lrclib.net/api';
 const UA = 'WindowsIsland/0.3';
@@ -83,7 +84,7 @@ async function fromLrclib({ title, artist, album, durationMs }) {
 }
 
 // ---------- Gabungan ----------
-async function get(q, localDir) {
+async function get(q, localDir, displayMode = 'original', romajiSystem = 'hepburn') {
   const title = String(q.title || '').trim();
   const artist = String(q.artist || '').trim();
   if (!title) return { status: 'none' };
@@ -95,13 +96,13 @@ async function get(q, localDir) {
     if (f) {
       try {
         const p = parseLrc(fs.readFileSync(f, 'utf8'));
-        if (p.lines.length) return { status: p.synced ? 'ok' : 'plain', source: 'local', synced: p.synced, lines: p.lines };
+        if (p.lines.length) return await withRomaji({ status: p.synced ? 'ok' : 'plain', source: 'local', synced: p.synced, lines: p.lines }, q, displayMode, romajiSystem);
       } catch {}
     }
   }
 
   const key = [artist, title, q.album, Math.round((q.durationMs || 0) / 1000)].join('|').toLowerCase();
-  if (cache.has(key)) return cache.get(key);
+  if (cache.has(key)) return await withRomaji(cache.get(key), q, displayMode, romajiSystem);
 
   let res;
   try {
@@ -118,7 +119,18 @@ async function get(q, localDir) {
   }
   if (cache.size > 60) cache.delete(cache.keys().next().value);
   cache.set(key, res);
-  return res;
+  return await withRomaji(res, q, displayMode, romajiSystem);
+}
+
+async function withRomaji(result, q, displayMode, romajiSystem) {
+  if (!result?.lines?.length || displayMode === 'original') return result;
+  try {
+    const lines = await romanizeLines(result.lines, { song: q, system: romajiSystem });
+    return { ...result, lines };
+  } catch (error) {
+    console.error('[lyrics] Romaji processing failed:', error);
+    return { ...result, romajiFailed: true };
+  }
 }
 
 // ---------- Impor file .lrc untuk lagu yang sedang diputar ----------
@@ -153,7 +165,7 @@ function saveImported(q, text, ext) {
 
 const extOf = (name) => (/\.elrc$/i.test(name) ? '.elrc' : '.lrc');
 
-async function importFile(q) {
+async function importFile(q, displayMode = 'original', romajiSystem = 'hepburn') {
   const r = await dialog.showOpenDialog({
     title: 'Pilih file lirik',
     properties: ['openFile'],
@@ -162,13 +174,13 @@ async function importFile(q) {
   if (r.canceled || !r.filePaths[0]) return null;
   let text;
   try { text = readText(r.filePaths[0]); } catch { return { status: 'invalid' }; }
-  return saveImported(q, text, extOf(r.filePaths[0]));
+  return await withRomaji(saveImported(q, text, extOf(r.filePaths[0])), q, displayMode, romajiSystem);
 }
 
 // File yang di-drop ke panel lirik (isi file dikirim dari renderer)
-function importText(q, text, name) {
+async function importText(q, text, name, displayMode = 'original', romajiSystem = 'hepburn') {
   if (!q || !q.title) return { status: 'invalid' };
-  return saveImported(q, String(text || '').replace(/^\uFEFF/, ''), extOf(String(name || '')));
+  return await withRomaji(saveImported(q, String(text || '').replace(/^\uFEFF/, ''), extOf(String(name || ''))), q, displayMode, romajiSystem);
 }
 
 // ---------- Pengelola salinan lirik ----------

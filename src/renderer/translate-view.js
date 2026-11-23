@@ -1,3 +1,5 @@
+import { createIslandDropdown } from './dropdown.js';
+
 let LANGUAGES = [];
 let LANGUAGE_BY_CODE = new Map();
 const languageDefaults = window.api.translateDefaults().then((defaults) => {
@@ -31,12 +33,17 @@ let helperHandler = null;
 let settingsHandler = null;
 let systemTarget = 'id';
 let activeTranslateContainer = null;
+let sourceDropdown = null;
+let targetDropdown = null;
 
 const icon = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
 const countChars = (text) => Array.from(text).length;
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 
 export function renderTranslate(container, settings) {
+  sourceDropdown?.destroy();
+  targetDropdown?.destroy();
+  sourceDropdown = targetDropdown = null;
   activeTranslateContainer = container;
   const cfg = settings.translation || {};
   state.sourceLanguage = cfg.autoDetect === false ? (cfg.sourceLanguage || 'en') : 'auto';
@@ -81,6 +88,8 @@ export function renderTranslate(container, settings) {
 
   const source = container.querySelector('#translateSource');
   const target = container.querySelector('#translateTarget');
+  sourceDropdown = createIslandDropdown(source, { className: 'translate-language-dropdown', ariaLabel: 'Source language' });
+  targetDropdown = createIslandDropdown(target, { className: 'translate-language-dropdown', ariaLabel: 'Target language' });
   const input = container.querySelector('#translateInput');
   const output = container.querySelector('#translateOutput');
   fillLanguages(source, true);
@@ -347,6 +356,8 @@ function updateView(container) {
   if (input && input.value !== state.original) input.value = state.original;
   if (sourceSelect && sourceSelect.value !== state.sourceLanguage) sourceSelect.value = state.sourceLanguage;
   if (targetSelect && targetSelect.value !== state.targetLanguage) targetSelect.value = state.targetLanguage;
+  sourceDropdown?.refresh();
+  targetDropdown?.refresh();
   if (output) {
     output.textContent = state.translated;
     output.classList.toggle('empty', !state.translated);
