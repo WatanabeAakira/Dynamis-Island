@@ -29,9 +29,9 @@ function draw(c) {
 
 function cards(c) {
   const defs = [
-    { id: 'timer', title: 'Timer' },
-    { id: 'focus', title: 'Focus' },
-    { id: 'alarm', title: 'Alarm' }
+    { id: 'timer', title: 'Timer', tagline: 'Siap mulai fokus?' },
+    { id: 'focus', title: 'Focus', tagline: 'Jaga ritme produktif.' },
+    { id: 'alarm', title: 'Alarm', tagline: 'Jangan lewatkan momen.' }
   ];
   c.innerHTML = `
     <div class="view tcards">
@@ -40,6 +40,7 @@ function cards(c) {
           <span class="tc-bg">${ICON[d.id]}</span>
           <span class="tc-ico">${ICON[d.id]}</span>
           <span class="tc-title">${d.title}</span>
+          <span class="tc-tagline">${d.tagline}</span>
           <span class="tc-sub" id="tc-sub-${d.id}"></span>
         </button>`).join('')}
     </div>`;

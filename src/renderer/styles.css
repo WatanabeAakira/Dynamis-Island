@@ -118,6 +118,9 @@ html, body {
   pointer-events: auto;
   transition: height var(--dur) var(--ease), opacity .3s ease .15s;
 }
+#island:is([data-mode="collapsed"], [data-mode="full-closed"]) .tabbar {
+  overflow-x: hidden;
+}
 
 .tab-btn {
   position: relative;
@@ -1048,9 +1051,10 @@ input[type="range"] { width: 130px; accent-color: var(--accent); }
 /* Event hari terpilih */
 .cl-agenda { flex: 1; min-height: 0; display: flex; align-items: center; gap: 8px; overflow-x: auto; }
 .cl-head { height: 46px; }
-.cl-strip { height: 127px; padding-top: 13px; padding-bottom: 13px; }
+.cl-strip { height: 146px; padding-top: 18px; padding-bottom: 18px; gap: 20px; }
 .cd { height: 96px; }
 .cd b { font-size: 38px; }
+.cd.sel { transform: scale(1.12); }
 .ev {
   flex: none; max-width: 230px; height: 28px; padding: 0 12px 0 10px; display: flex; align-items: center; gap: 8px;
   border: 0; border-left: 3px solid var(--ec); border-radius: 4px; color: #fff; font: inherit; font-size: 12.5px; cursor: pointer; text-align: left;
@@ -1502,9 +1506,15 @@ input[type="range"] { width: 130px; accent-color: var(--accent); }
 .m-main { height: 100%; display: flex; align-items: stretch; }
 .m-left { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 12px; }
 .m-hero { display: flex; gap: 18px; align-items: center; min-width: 0; }
-.m-cover { position: relative; flex: none; width: 132px; height: 132px; border-radius: 20px; overflow: hidden; background: rgba(255, 255, 255, .05); box-shadow: 0 10px 28px rgba(0, 0, 0, .5), inset 0 0 0 1px rgba(255, 255, 255, .08); }
+.m-cover { position: relative; flex: none; width: 132px; height: 132px; border-radius: 20px; overflow: hidden; background: rgba(255, 255, 255, .05); box-shadow: 0 10px 28px rgba(0, 0, 0, .5); }
 .media:not(.lyrics) .m-left { gap: 8px; }
 .media:not(.lyrics) .m-cover { width: 94px; height: 94px; border-radius: 16px; }
+.m-cover::after { content: ''; position: absolute; inset: -30% -70%; z-index: 2; pointer-events: none; opacity: 0; transform: translateX(-55%) rotate(18deg); background: linear-gradient(90deg, transparent 38%, rgba(255,255,255,.05) 46%, rgba(255,255,255,.38) 50%, rgba(255,255,255,.08) 54%, transparent 62%); }
+.m-cover.art-changing { box-shadow: 0 12px 32px rgba(0,0,0,.52); }
+.m-cover.art-changing img { animation: coverArtArrive .56s cubic-bezier(.2,.8,.2,1) both; }
+.m-cover.art-changing::after { animation: coverArtSheen .72s cubic-bezier(.2,.7,.25,1) both; }
+@keyframes coverArtArrive { from { opacity: .35; transform: scale(.9) rotate(-3deg); filter: saturate(.78) brightness(.82); } to { opacity: 1; transform: scale(1) rotate(0); filter: saturate(1) brightness(1); } }
+@keyframes coverArtSheen { 0% { opacity: 0; transform: translateX(-55%) rotate(18deg); } 18% { opacity: .9; } 100% { opacity: 0; transform: translateX(55%) rotate(18deg); } }
 .media:not(.lyrics) .m-title { font-size: 19px; }
 .media:not(.lyrics) .m-foot { gap: 6px; }
 .media:not(.lyrics) .m-ctl { gap: 6px; }
@@ -1810,4 +1820,284 @@ input[type="range"] { width: 130px; accent-color: var(--accent); }
 }
 @media (prefers-reduced-motion: reduce) {
   :where(*)::-webkit-scrollbar-thumb { transition: none; }
+}
+
+/* ---------- Calendar: premium simulated glass surfaces ---------- */
+#island[data-mode="expanded"][data-tab="calendar"] {
+  --cal-ink: rgba(250, 247, 255, .96);
+  --cal-muted: rgba(225, 216, 247, .68);
+  --cal-line: rgba(226, 211, 255, .2);
+  --cal-glass: linear-gradient(145deg, rgba(177, 151, 222, .16), rgba(62, 54, 110, .2) 48%, rgba(32, 39, 91, .28));
+  box-shadow: inset 0 1px rgba(255,255,255,.16), inset 0 -1px rgba(185,164,255,.12), 0 18px 48px rgba(5,3,23,.42);
+}
+#island[data-mode="expanded"][data-tab="calendar"] .theme-bg {
+  opacity: 1;
+  background:
+    radial-gradient(ellipse 42% 80% at 8% 2%, rgba(162, 115, 211, .22), transparent 76%),
+    radial-gradient(ellipse 48% 76% at 92% 104%, rgba(68, 100, 190, .23), transparent 74%),
+    radial-gradient(ellipse 30% 48% at 52% 44%, rgba(114, 83, 164, .12), transparent 78%),
+    linear-gradient(148deg, #171126 0%, #21183f 42%, #171936 100%);
+}
+#island[data-mode="expanded"][data-tab="calendar"] .theme-bg::before,
+#island[data-mode="expanded"][data-tab="calendar"] .theme-bg::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+}
+#island[data-mode="expanded"][data-tab="calendar"] .theme-bg::before {
+  background: linear-gradient(126deg, transparent 20%, rgba(232,215,255,.045) 38%, transparent 54%),
+    linear-gradient(180deg, rgba(255,255,255,.1), transparent 13%, transparent 86%, rgba(185,164,255,.08));
+  opacity: .8;
+}
+#island[data-mode="expanded"][data-tab="calendar"] .theme-bg::after {
+  opacity: .13;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.25'/%3E%3C/svg%3E");
+}
+#island[data-mode="expanded"][data-tab="calendar"] .tab-btn.active {
+  background: linear-gradient(145deg, rgba(222,199,255,.24), rgba(146,112,194,.14));
+  box-shadow: inset 0 1px rgba(255,255,255,.2), 0 4px 14px rgba(8,4,24,.2);
+}
+
+#island[data-mode="expanded"][data-tab="calendar"] .cal,
+#island[data-mode="expanded"][data-tab="calendar"] .ce { color: var(--cal-ink); }
+#island[data-mode="expanded"][data-tab="calendar"] .cl-nav,
+#island[data-mode="expanded"][data-tab="calendar"] .cl-today,
+#island[data-mode="expanded"][data-tab="calendar"] .sub-back {
+  border: 1px solid var(--cal-line);
+  background: linear-gradient(145deg, rgba(196,169,234,.2), rgba(91,77,139,.18));
+  box-shadow: inset 0 1px rgba(255,255,255,.13), 0 3px 9px rgba(4,3,17,.16);
+  transition: background .2s ease, border-color .2s ease, transform .2s ease;
+}
+#island[data-mode="expanded"][data-tab="calendar"] .cl-nav:hover,
+#island[data-mode="expanded"][data-tab="calendar"] .cl-today:hover,
+#island[data-mode="expanded"][data-tab="calendar"] .sub-back:hover {
+  border-color: rgba(230,214,255,.4); background: linear-gradient(145deg, rgba(218,193,255,.3), rgba(120,100,171,.24));
+}
+#island[data-mode="expanded"][data-tab="calendar"] .cl-add,
+#island[data-mode="expanded"][data-tab="calendar"] .ce .ae-done {
+  border: 1px solid rgba(237,222,255,.48);
+  background: linear-gradient(145deg, #d4c2f4, #ad96dc);
+  color: #211738;
+  box-shadow: inset 0 1px rgba(255,255,255,.56), 0 4px 12px rgba(9,5,26,.2);
+  transition: filter .2s ease, transform .2s ease, box-shadow .2s ease;
+}
+#island[data-mode="expanded"][data-tab="calendar"] .cl-add:hover,
+#island[data-mode="expanded"][data-tab="calendar"] .ce .ae-done:hover { filter: brightness(1.07); box-shadow: inset 0 1px rgba(255,255,255,.65), 0 5px 15px rgba(13,7,35,.28); }
+#island[data-mode="expanded"][data-tab="calendar"] .cl-add:active,
+#island[data-mode="expanded"][data-tab="calendar"] .ce .ae-done:active { transform: translateY(1px); }
+
+#island[data-mode="expanded"][data-tab="calendar"] .cd:is(.n1, .n2, .n3) {
+  overflow: hidden; border: 1px solid rgba(222,205,255,.18); border-radius: 10px;
+  background: linear-gradient(150deg, rgba(196,169,231,.16), rgba(92,83,143,.15) 50%, rgba(43,54,111,.21));
+  box-shadow: inset 0 1px rgba(255,255,255,.15), inset 0 -12px 22px rgba(14,12,43,.1), 0 5px 14px rgba(6,4,22,.14);
+  transition: transform .28s var(--ease), opacity .28s ease, border-color .28s ease, box-shadow .28s ease, background .28s ease;
+}
+#island[data-mode="expanded"][data-tab="calendar"] .cd:hover:not(.sel) {
+  border-color: rgba(224,207,255,.38); background: linear-gradient(150deg, rgba(213,190,244,.24), rgba(111,99,164,.2) 52%, rgba(54,69,133,.25));
+  box-shadow: inset 0 1px rgba(255,255,255,.2), 0 7px 17px rgba(6,4,22,.22);
+}
+#island[data-mode="expanded"][data-tab="calendar"] .cd.sel {
+  border: 1px solid rgba(231,216,255,.74);
+  background: linear-gradient(145deg, rgba(185,157,223,.38), rgba(89,76,145,.36) 48%, rgba(45,59,126,.42));
+  box-shadow: inset 0 1px 1px rgba(255,255,255,.34), inset 0 -15px 24px rgba(27,20,69,.2), 0 0 0 1px rgba(214,190,255,.38), 0 7px 22px rgba(122,93,185,.22);
+}
+#island[data-mode="expanded"][data-tab="calendar"] .cd.sel .cd-w { border-bottom-color: rgba(238,224,255,.5); }
+#island[data-mode="expanded"][data-tab="calendar"] .cd:focus-visible { outline: 2px solid rgba(236,222,255,.9); outline-offset: 2px; }
+#island[data-mode="expanded"][data-tab="calendar"] .cl-none { color: var(--cal-muted); text-shadow: 0 1px 8px rgba(7,4,22,.24); }
+#island[data-mode="expanded"][data-tab="calendar"] .ev {
+  border: 1px solid rgba(222,205,255,.2); border-left: 3px solid var(--ec); border-radius: 7px;
+  background: linear-gradient(145deg, rgba(192,169,230,.2), rgba(67,69,132,.19));
+  box-shadow: inset 0 1px rgba(255,255,255,.13), 0 3px 10px rgba(7,4,22,.16);
+}
+
+#island[data-mode="expanded"][data-tab="calendar"] .ce-in {
+  border: 1px solid rgba(222,205,255,.23); border-radius: 8px;
+  background: linear-gradient(145deg, rgba(20,17,41,.58), rgba(33,29,65,.52));
+  box-shadow: inset 0 1px rgba(255,255,255,.07); color: #fbf9ff;
+  transition: background .2s ease, border-color .2s ease, box-shadow .2s ease;
+}
+#island[data-mode="expanded"][data-tab="calendar"] .ce-in:focus {
+  outline: 0; border-color: rgba(216,191,255,.82); background: rgba(38,30,70,.78);
+  box-shadow: 0 0 0 2px rgba(189,158,241,.2), inset 0 1px rgba(255,255,255,.12);
+}
+#island[data-mode="expanded"][data-tab="calendar"] .ce-card {
+  border: 1px solid rgba(220,203,255,.25); border-radius: 10px;
+  background: linear-gradient(145deg, rgba(185,157,220,.23), rgba(90,79,143,.2) 56%, rgba(49,62,124,.24));
+  box-shadow: inset 0 1px rgba(255,255,255,.19), inset 0 -10px 20px rgba(22,17,55,.12), 0 5px 15px rgba(7,4,22,.18);
+}
+#island[data-mode="expanded"][data-tab="calendar"] .ce-sp button { transition: opacity .18s ease, color .18s ease; }
+#island[data-mode="expanded"][data-tab="calendar"] .ce-sp button:hover { color: #fff; }
+#island[data-mode="expanded"][data-tab="calendar"] .ce-rc {
+  border-color: rgba(222,205,255,.26); border-radius: 8px;
+  background: linear-gradient(145deg, rgba(176,151,218,.1), rgba(57,51,94,.18));
+  box-shadow: inset 0 1px rgba(255,255,255,.08);
+  transition: background .2s ease, border-color .2s ease, color .2s ease, box-shadow .2s ease;
+}
+#island[data-mode="expanded"][data-tab="calendar"] .ce-rc:hover { border-color: rgba(225,207,255,.48); background: rgba(192,168,233,.2); }
+#island[data-mode="expanded"][data-tab="calendar"] .ce-rc.on {
+  border-color: rgba(235,222,255,.52); background: linear-gradient(145deg, #d2c0f0, #ad96dc); color: #241a39;
+  box-shadow: inset 0 1px rgba(255,255,255,.48), 0 3px 10px rgba(9,5,26,.18);
+}
+#island[data-mode="expanded"][data-tab="calendar"] .ce-sw.on { box-shadow: 0 0 0 2px rgba(30,23,54,.95), 0 0 0 4px rgba(218,198,255,.84), 0 3px 10px rgba(6,3,18,.28); }
+#island[data-mode="expanded"][data-tab="calendar"] .ce .switch > span { box-shadow: inset 0 1px 3px rgba(10,6,27,.35); }
+#island[data-mode="expanded"][data-tab="calendar"] .ce .switch input:checked + span { background: linear-gradient(145deg, #d6c4f2, #a78bd4); }
+
+/* Final lighting pass: broader ambient pools, curved edge reflections and cleaner grain. */
+#island[data-mode="expanded"][data-tab="calendar"] .theme-bg {
+  background:
+    radial-gradient(ellipse 44% 92% at 4% 5%, rgba(151, 102, 199, .3), transparent 75%),
+    radial-gradient(ellipse 38% 70% at 72% 4%, rgba(128, 91, 174, .2), transparent 73%),
+    radial-gradient(ellipse 52% 82% at 97% 98%, rgba(66, 103, 194, .3), transparent 72%),
+    radial-gradient(ellipse 32% 48% at 42% 72%, rgba(112, 79, 160, .14), transparent 80%),
+    linear-gradient(151deg, #171022 0%, #25183d 39%, #1a1b3d 75%, #17152f 100%);
+}
+#island[data-mode="expanded"][data-tab="calendar"] .theme-bg::before {
+  background:
+    linear-gradient(128deg, transparent 19%, rgba(239,224,255,.02) 28%, rgba(233,214,255,.13) 34%, rgba(230,213,255,.035) 39%, transparent 49%),
+    radial-gradient(ellipse 71% 56% at 52% 143%, transparent 61%, rgba(206,177,255,.08) 64%, rgba(203,175,255,.2) 65%, rgba(159,130,222,.055) 68%, transparent 72%),
+    radial-gradient(ellipse 66% 52% at 50% 144%, transparent 66%, rgba(227,207,255,.12) 68%, transparent 71%),
+    linear-gradient(180deg, rgba(248,236,255,.16), rgba(229,210,255,.035) 8%, transparent 20%, transparent 81%, rgba(178,153,233,.055) 90%, rgba(210,190,255,.12) 100%);
+  opacity: .92;
+}
+#island[data-mode="expanded"][data-tab="calendar"] .theme-bg::after {
+  display: none;
+}
+
+#island[data-mode="expanded"][data-tab="calendar"] .cd:is(.n1, .n2, .n3) {
+  position: relative;
+  border-color: rgba(224,207,255,.27);
+  background:
+    linear-gradient(132deg, rgba(221,197,249,.18) 0%, rgba(174,148,213,.11) 20%, transparent 43%),
+    linear-gradient(180deg, rgba(175,149,218,.22) 0%, rgba(91,79,136,.27) 42%, rgba(36,45,99,.36) 100%);
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.25), inset 1px 0 rgba(242,230,255,.07),
+    inset 0 -1px rgba(221,208,255,.09), inset 0 -16px 24px rgba(17,17,50,.16),
+    0 7px 18px rgba(6,4,22,.24);
+}
+#island[data-mode="expanded"][data-tab="calendar"] .cd:is(.n1, .n2, .n3, .sel) > * { position: relative; z-index: 1; }
+#island[data-mode="expanded"][data-tab="calendar"] .cd:is(.n1, .n2, .n3)::before {
+  content: ''; position: absolute; inset: 1px; z-index: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(128deg, transparent 4%, rgba(241,228,255,.1) 22%, rgba(237,224,255,.035) 31%, transparent 47%);
+  opacity: .58;
+}
+#island[data-mode="expanded"][data-tab="calendar"] .cd:hover:not(.sel) {
+  border-color: rgba(234,218,255,.46);
+  background:
+    linear-gradient(132deg, rgba(232,214,255,.23) 0%, rgba(190,166,228,.14) 22%, transparent 46%),
+    linear-gradient(180deg, rgba(194,169,235,.29), rgba(105,93,154,.29) 48%, rgba(45,57,119,.38));
+}
+#island[data-mode="expanded"][data-tab="calendar"] .cd.sel {
+  border-color: rgba(245,233,255,.88);
+  background:
+    linear-gradient(128deg, rgba(249,231,255,.3) 0%, rgba(215,187,246,.13) 18%, transparent 43%),
+    radial-gradient(ellipse 72% 62% at 13% 0%, rgba(203,169,246,.25), transparent 78%),
+    linear-gradient(160deg, rgba(155,126,207,.46), rgba(77,71,140,.47) 53%, rgba(39,54,116,.55));
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,.42), inset 1px 0 rgba(246,233,255,.16),
+    inset 0 -1px rgba(233,222,255,.23), inset 0 0 24px rgba(193,160,247,.16),
+    0 0 0 1px rgba(224,204,255,.36), 0 0 18px rgba(178,139,239,.24),
+    0 11px 24px rgba(5,4,23,.36);
+}
+#island[data-mode="expanded"][data-tab="calendar"] .cd.sel::before {
+  opacity: .95;
+  background: linear-gradient(132deg, transparent 4%, rgba(255,248,255,.22) 17%, rgba(245,232,255,.12) 25%, rgba(230,212,255,.035) 34%, transparent 47%);
+}
+#island[data-mode="expanded"][data-tab="calendar"] .cd.sel .cd-w { border-bottom-color: rgba(247,238,255,.66); }
+
+#island[data-mode="expanded"][data-tab="calendar"] .ce-card {
+  background:
+    linear-gradient(132deg, rgba(224,202,250,.13), transparent 36%),
+    linear-gradient(165deg, rgba(175,149,219,.28), rgba(87,76,137,.28) 55%, rgba(42,55,112,.35));
+  border-color: rgba(229,211,255,.34);
+  box-shadow: inset 0 1px rgba(255,255,255,.25), inset 0 -12px 22px rgba(18,15,48,.16), 0 8px 18px rgba(6,4,22,.25);
+}
+#island[data-mode="expanded"][data-tab="calendar"] .ce-in {
+  background: linear-gradient(140deg, rgba(28,23,51,.78), rgba(38,32,70,.68));
+  border-color: rgba(226,207,255,.34);
+  box-shadow: inset 0 1px rgba(255,255,255,.11), inset 0 -8px 14px rgba(8,7,25,.13), 0 4px 12px rgba(6,4,20,.12);
+}
+#island[data-mode="expanded"][data-tab="calendar"] .ce-rc {
+  background: linear-gradient(145deg, rgba(191,166,231,.16), rgba(69,61,111,.25));
+  box-shadow: inset 0 1px rgba(255,255,255,.14), 0 3px 8px rgba(5,4,20,.14);
+}
+
+/* ---------- Timer / Focus / Alarm overview cards ---------- */
+#island[data-mode="expanded"][data-tab="timer"] .tcards {
+  align-items: center;
+  gap: 12px;
+}
+#island[data-mode="expanded"][data-tab="timer"] .tc {
+  --tc-accent: #ff7188;
+  height: min(152px, 100%);
+  min-height: 0;
+  align-self: center;
+  justify-content: flex-start;
+  gap: 3px;
+  padding: 61px 12px 11px;
+  border: 1px solid color-mix(in srgb, var(--tc-accent) 23%, rgba(255,255,255,.1));
+  border-radius: 20px;
+  background:
+    radial-gradient(ellipse 86% 62% at 100% 100%, color-mix(in srgb, var(--tc-accent) 21%, transparent), transparent 76%),
+    linear-gradient(148deg, rgba(42,34,48,.95), rgba(20,20,31,.97) 58%, rgba(18,20,35,.98));
+  box-shadow: inset 0 1px rgba(255,255,255,.13), inset 0 -1px color-mix(in srgb, var(--tc-accent) 18%, transparent), 0 10px 24px rgba(0,0,0,.34);
+  transition: transform .25s var(--ease), border-color .25s ease, box-shadow .25s ease, filter .25s ease;
+}
+#island[data-mode="expanded"][data-tab="timer"] .tc-timer { --tc-accent: #ff7086; }
+#island[data-mode="expanded"][data-tab="timer"] .tc-focus { --tc-accent: #f0b65f; }
+#island[data-mode="expanded"][data-tab="timer"] .tc-alarm { --tc-accent: #bc83ef; }
+#island[data-mode="expanded"][data-tab="timer"] .tc::before {
+  inset: 0;
+  background: linear-gradient(132deg, rgba(255,255,255,.09), transparent 35%), linear-gradient(180deg, rgba(255,255,255,.05), transparent 32%);
+  pointer-events: none;
+}
+#island[data-mode="expanded"][data-tab="timer"] .tc::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: radial-gradient(ellipse 90% 42% at 88% 125%, transparent 59%, color-mix(in srgb, var(--tc-accent) 30%, transparent) 63%, transparent 70%);
+}
+#island[data-mode="expanded"][data-tab="timer"] .tc:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--tc-accent) 48%, rgba(255,255,255,.2));
+  box-shadow: inset 0 1px rgba(255,255,255,.18), inset 0 -1px color-mix(in srgb, var(--tc-accent) 32%, transparent), 0 13px 28px color-mix(in srgb, var(--tc-accent) 22%, rgba(0,0,0,.34));
+  filter: brightness(1.06);
+}
+#island[data-mode="expanded"][data-tab="timer"] .tc:active { transform: translateY(-1px) scale(.99); }
+#island[data-mode="expanded"][data-tab="timer"] .tc-ico {
+  top: 12px; left: 12px; width: 38px; height: 38px; padding: 9px;
+  border: 1px solid color-mix(in srgb, var(--tc-accent) 38%, rgba(255,255,255,.12));
+  border-radius: 13px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--tc-accent) 22%, rgba(255,255,255,.06)), rgba(255,255,255,.035));
+  color: var(--tc-accent);
+  box-shadow: inset 0 1px rgba(255,255,255,.16), 0 5px 14px rgba(0,0,0,.2);
+}
+#island[data-mode="expanded"][data-tab="timer"] .tc-ico svg { stroke: currentColor; }
+#island[data-mode="expanded"][data-tab="timer"] .tc-bg {
+  top: 8px; right: 3px; width: 102px; height: 102px;
+  color: var(--tc-accent); opacity: .3;
+  filter: drop-shadow(0 5px 12px color-mix(in srgb, var(--tc-accent) 22%, transparent));
+  transition: transform .35s var(--ease), opacity .25s ease;
+}
+#island[data-mode="expanded"][data-tab="timer"] .tc-bg svg { stroke: currentColor; stroke-width: 1.2; }
+#island[data-mode="expanded"][data-tab="timer"] .tc:hover .tc-bg { opacity: .42; transform: rotate(-5deg) scale(1.04); }
+#island[data-mode="expanded"][data-tab="timer"] .tc-title { z-index: 1; font-size: 19px; letter-spacing: -.02em; text-shadow: 0 2px 10px rgba(0,0,0,.25); }
+#island[data-mode="expanded"][data-tab="timer"] .tc-tagline { z-index: 1; color: rgba(255,255,255,.72); font-size: 10px; line-height: 1.25; }
+#island[data-mode="expanded"][data-tab="timer"] .tc-sub {
+  z-index: 1; min-height: 30px; margin-top: auto; padding: 0 9px;
+  display: flex; align-items: center; gap: 5px;
+  border: 1px solid rgba(255,255,255,.12); border-radius: 10px;
+  background: linear-gradient(145deg, rgba(255,255,255,.085), rgba(255,255,255,.035));
+  box-shadow: inset 0 1px rgba(255,255,255,.08);
+  color: rgba(255,255,255,.86); font-size: 10px; line-height: 1.2; opacity: 1;
+}
+#island[data-mode="expanded"][data-tab="timer"] .tc-sub::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--tc-accent); box-shadow: 0 0 8px color-mix(in srgb, var(--tc-accent) 55%, transparent); }
+#island[data-mode="expanded"][data-tab="timer"] .tc-sub::after { content: '›'; margin-left: auto; color: rgba(255,255,255,.85); font-size: 21px; line-height: .8; }
+@media (prefers-reduced-motion: reduce) {
+  #island[data-mode="expanded"][data-tab="timer"] .tc,
+  #island[data-mode="expanded"][data-tab="timer"] .tc-bg { transition-duration: .01ms; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #island[data-mode="expanded"][data-tab="calendar"] .cd,
+  #island[data-mode="expanded"][data-tab="calendar"] .cl-nav,
+  #island[data-mode="expanded"][data-tab="calendar"] .cl-today,
+  #island[data-mode="expanded"][data-tab="calendar"] .cl-add,
+  #island[data-mode="expanded"][data-tab="calendar"] .ce-in,
+  #island[data-mode="expanded"][data-tab="calendar"] .ce-rc { transition-duration: .01ms; }
 }

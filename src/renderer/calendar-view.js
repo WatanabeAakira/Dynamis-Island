@@ -16,7 +16,7 @@ const DOWN = '<path d="M6 9l6 6 6-6"/>';
 const MOON_STARS = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 14.2A7.6 7.6 0 1 1 9.8 4.1a6.2 6.2 0 0 0 7.7 10.1z"/><path d="M18 3l.9 2.1L21 6l-2.1.9L18 9l-.9-2.1L15 6l2.1-.9z"/><path d="M21.2 10.6l.5 1.2 1.2.5-1.2.5-.5 1.2-.5-1.2-1.2-.5 1.2-.5z"/></svg>';
 
 const CELL = 92;       // lebar kartu (px)
-const GAP = 16;        // jarak antar kartu
+const GAP = 20;        // jarak antar kartu
 const WIN = 400;       // jumlah hari yang disiapkan sebelum dan sesudah titik tengah
 const DAY_MS = 86400000;
 

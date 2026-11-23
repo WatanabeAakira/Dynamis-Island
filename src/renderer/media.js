@@ -23,6 +23,7 @@ const ICON = {
 let st = { active: false };
 export const mediaNow = () => st;
 let art = null;
+let animateNextArt = false;
 let helperError = null;
 let toastPending = false;
 let toastWait = 0;
@@ -90,7 +91,10 @@ function onMsg(m) {
   if (m.type === 'error') { helperError = m.message; }
   else if (m.type === 'state') {
     helperError = null;
-    if (m.newTrack || !m.active) art = null;
+    if (m.newTrack || !m.active) {
+      art = null;
+      animateNextArt = !!m.active && !!m.newTrack;
+    }
     if (m.thumb) art = m.thumb;
     st = { ...m, recvAt: performance.now() };
     trackChanged(st);
@@ -235,6 +239,16 @@ export function renderMedia(container) {
     el.src.textContent = friendlySource(st.source);
     el.art.hidden = !art;
     if (art && el.art.src !== art) el.art.src = art;
+    if (art && animateNextArt) {
+      animateNextArt = false;
+      const cover = el.art.closest('.m-cover');
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches && cover) {
+        cover.classList.remove('art-changing');
+        void cover.offsetWidth;
+        cover.classList.add('art-changing');
+        setTimeout(() => cover.classList.remove('art-changing'), 760);
+      }
+    }
     el.wave.classList.toggle('paused', st.status !== 'Playing');
 
     const next = st.status === 'Playing' ? 'pause' : 'play';
