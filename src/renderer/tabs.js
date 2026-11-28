@@ -20,6 +20,8 @@ export const ICONS = {
   notes: svg('<path d="M5 3h14a2 2 0 0 1 2 2v14l-4 3H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM17 22v-4h4M7 8h10M7 12h10M7 16h6"/>'),
   'quick-settings': svg('<path d="M12 2.5l1.2 2.8 3 .3.8 2.9 2.7 1.4-.5 3 1.8 2.4-1.8 2.4.5 3-2.7 1.4-.8 2.9-3 .3-1.2 2.8-2.8-1.2-2.8 1.2-1.2-2.8-3-.3-.8-2.9-2.7-1.4.5-3L0 12l1.8-2.4-.5-3L4 5.2l.8-2.9 3-.3L9 0z" transform="translate(2 1) scale(.83)"/><circle cx="12" cy="12" r="3"/>'),
   'system-monitor': svg('<path d="M2 13h4l3-8 5 14 3-8h5"/>'),
+  'network-monitor': svg('<path d="M2 8.8a15 15 0 0 1 20 0M5 12a10.5 10.5 0 0 1 14 0m-11 3.2a5.7 5.7 0 0 1 8 0M12 19h.01"/>'),
+  'battery-power': svg('<rect x="3" y="6" width="17" height="12" rx="2.5"/><path d="M22 10v4M10 8.5l-2 4h3l-1 3 4-5h-3l1-2z"/>'),
   settings: svg('<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/>')
 };
 
@@ -40,7 +42,9 @@ export const TABS = [
   { id: 'clipboard', title: 'Clipboard Manager', stage: 12, hint: 'Riwayat clipboard lokal untuk teks, gambar, link, dan file' },
   { id: 'notes', title: 'Quick Notes', stage: 12, hint: 'Catatan cepat tersimpan lokal dan otomatis' },
   { id: 'quick-settings', title: 'Quick Settings', stage: 13, hint: 'Kontrol cepat dengan status dan tautan Windows Settings' },
-  { id: 'system-monitor', title: 'System Monitor', stage: 13, hint: 'Metrik PC real-time dan proses teratas' }
+  { id: 'system-monitor', title: 'System Monitor', stage: 13, hint: 'Metrik PC real-time dan proses teratas' },
+  { id: 'network-monitor', title: 'Network Monitor', stage: 14, hint: 'Kecepatan koneksi dan pemakaian Wi-Fi bulanan' },
+  { id: 'battery-power', title: 'Battery & Power', stage: 14, hint: 'Status baterai dan power mode Windows' }
 ];
 
 export function renderPlaceholder(container, tab) {

@@ -27,7 +27,8 @@ test('feature sizing starts at the reviewed targets and clamps requests', async 
   assert.deepEqual(module.FEATURE_HEIGHTS, {
     media: 260, audio: 260, timer: 240, focus: 260, clock: 260,
     'copy-text': 310, translate: 330, calendar: 300, ai: 310,
-    notif: 330, files: 330, apps: 300, weather: 300, settings: 260
+    notif: 330, files: 330, apps: 300, weather: 300, settings: 260,
+    'network-monitor': 260, 'battery-power': 260
   });
   assert.equal(module.preferredExpandedHeight('media'), 260);
   assert.equal(module.preferredExpandedHeight('clock'), 260);
@@ -37,6 +38,8 @@ test('feature sizing starts at the reviewed targets and clamps requests', async 
   assert.equal(module.preferredExpandedHeight('notif', '', 400), 360);
   assert.equal(module.preferredExpandedHeight('quick-settings'), 260);
   assert.equal(module.preferredExpandedHeight('system-monitor'), 260);
+  assert.equal(module.preferredExpandedHeight('network-monitor'), 260);
+  assert.equal(module.preferredExpandedHeight('battery-power'), 260);
   assert.equal(module.preferredExpandedHeight('unknown'), 260);
 });
 

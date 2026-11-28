@@ -18,6 +18,8 @@ import { renderClipboard } from './clipboard-view.js';
 import { renderNotes } from './notes-view.js';
 import { renderQuickSettings } from './quick-settings-view.js';
 import { renderSystemMonitor } from './system-monitor-view.js';
+import { renderNetworkMonitor } from './network-monitor-view.js';
+import { renderBatteryPower } from './battery-power-view.js';
 import { setNotifLimit } from './notifkeeper.js';
 import { setNoticeMs } from './toast.js';
 import './compact.js';
@@ -27,7 +29,7 @@ import { getLanguage, localizeTree, setLanguage, tr, watchLocale } from './local
 import { EXPANDED_HEIGHT, preferredExpandedHeight } from './layout-sizing.js';
 
 // Tab yang sudah punya tampilan sendiri (selain media dan pengaturan). Tab baru cukup ditambah di sini.
-const VIEWS = { clock: renderClock, timer: renderTimeTab, calendar: renderCalendar, weather: renderWeather, audio: renderAudio, files: renderFiles, apps: renderApps, notif: renderNotif, ai: renderAi, 'copy-text': renderCopyText, translate: renderTranslate, clipboard: renderClipboard, notes: renderNotes, 'quick-settings': renderQuickSettings, 'system-monitor': renderSystemMonitor };
+const VIEWS = { clock: renderClock, timer: renderTimeTab, calendar: renderCalendar, weather: renderWeather, audio: renderAudio, files: renderFiles, apps: renderApps, notif: renderNotif, ai: renderAi, 'copy-text': renderCopyText, translate: renderTranslate, clipboard: renderClipboard, notes: renderNotes, 'quick-settings': renderQuickSettings, 'system-monitor': renderSystemMonitor, 'network-monitor': renderNetworkMonitor, 'battery-power': renderBatteryPower };
 import { setAccentSettings } from './palette.js';
 
 const island  = document.getElementById('island');
@@ -167,7 +169,7 @@ function setPinned(value) {
 // ---------- Tab bar ----------
 function buildTabbar() {
   const language = settings.language === 'en' ? 'en' : 'id';
-  const availableTabs = TABS.filter((t) => t.id !== 'clipboard' || settings.clipboard?.enabled !== false).filter((t) => t.id !== 'notes' || settings.notes?.enabled !== false).filter((t) => t.id !== 'quick-settings' || settings.quickSettings?.enabled !== false).filter((t) => t.id !== 'system-monitor' || settings.systemMonitor?.enabled !== false);
+  const availableTabs = TABS.filter((t) => t.id !== 'clipboard' || settings.clipboard?.enabled !== false).filter((t) => t.id !== 'notes' || settings.notes?.enabled !== false).filter((t) => t.id !== 'quick-settings' || settings.quickSettings?.enabled !== false).filter((t) => t.id !== 'system-monitor' || settings.systemMonitor?.enabled !== false).filter((t) => t.id !== 'network-monitor' || settings.networkMonitor?.enabled !== false).filter((t) => t.id !== 'battery-power' || settings.batteryPower?.enabled !== false);
   const btn = (id, title) =>
     `<button class="tab-btn" data-tab="${id}" title="${tr(title, language)}" aria-label="${tr(title, language)}">${ICONS[id]}</button>`;
   tabbar.innerHTML =
@@ -442,6 +444,12 @@ window.api.onHelper((msg) => {
   if (msg.type === 'quick-settings-state' || msg.type === 'quick-settings-error') window.dispatchEvent(new CustomEvent(msg.type, { detail: msg.state || msg }));
   if (msg.type === 'system-monitor-snapshot') window.dispatchEvent(new CustomEvent('system-monitor:snapshot', { detail: msg.snapshot }));
   if (msg.type === 'system-monitor-error' || msg.type === 'backend-error') window.dispatchEvent(new CustomEvent('system-monitor:error', { detail: msg }));
+  if (msg.type === 'network-monitor-snapshot') window.dispatchEvent(new CustomEvent('network-monitor:snapshot', { detail: msg.snapshot }));
+  if (msg.type === 'battery-power-snapshot') window.dispatchEvent(new CustomEvent('battery-power:snapshot', { detail: msg.snapshot }));
+  if (msg.type === 'battery-power-action') window.dispatchEvent(new CustomEvent('battery-power:action', { detail: msg }));
+  if (msg.type === 'battery-power-alert') document.dispatchEvent(new CustomEvent('island:system-alert', { detail: msg }));
+  if (msg.type === 'network-data-limit-alert') document.dispatchEvent(new CustomEvent('island:system-alert', { detail: msg }));
+  if (msg.type === 'network-power-error') window.dispatchEvent(new CustomEvent('network-power:error', { detail: msg }));
   if (msg.type === 'system-monitor-alert') document.dispatchEvent(new CustomEvent('island:system-alert', { detail: msg }));
   if (msg.type === 'translate-open') {
     if (activeTab !== 'translate') {
@@ -502,7 +510,7 @@ window.api.onSettings((s) => {
   applySettings(s);
   window.dispatchEvent(new CustomEvent('island:settings', { detail: s }));
   if (autoFullClosedChanged) syncFullscreenMode('fullscreen-setting');
-  if (languageChanged || activeTab === 'clock') {
+  if (languageChanged || activeTab === 'clock' || activeTab === 'network-monitor' || activeTab === 'battery-power') {
     buildTabbar();
     if (activeTab) renderActive();
     else localizeTree(document.body, s.language);

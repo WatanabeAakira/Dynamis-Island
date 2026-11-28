@@ -16,7 +16,8 @@ const esc = (t) => String(t).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '
 
 let kind = null; // 'files' | 'apps' | 'audio' | 'translate' | null
 let count = 0, variant = 'outline', apps = [], A = { ...APPS_DEFAULTS };
-let monitorSnapshot=null,quickSnapshot=null,Q={compactStatus:true},SM={compactMetric:'cpu'};
+let monitorSnapshot=null,quickSnapshot=null,networkSnapshot=null,batterySnapshot=null,Q={compactStatus:true},SM={compactMetric:'cpu'};
+const fmt=(n)=>{if(n==null||!Number.isFinite(Number(n)))return'—';const v=Number(n);return v>=1048576?`${(v/1048576).toFixed(1)} MB/s`:`${Math.round(v/1024)} KB/s`;};
 let translationCompact = { processing: false, source: '', target: '', result: false };
 
 function shown() {
@@ -27,17 +28,20 @@ function shown() {
 function renderApps() {
   if (A.compactMode === 'count') {
     cmp.innerHTML = `<span class="cp-grid">${GRID}</span><b>${apps.length}</b><i class="cp-sep"></i><span class="cp-chev">${CHEV}</span>`;
-    island.style.setProperty('--cmp-w', '156px');
+    island.style.setProperty('--cmp-w', '104px');
     return;
   }
-  const list = shown();
+  // Compact pill prioritizes a few launchable icons and summarizes the rest.
+  // This keeps the collapsed island close to the Media Player footprint.
+  const all = shown();
+  const list = all.slice(0, A.compactLabels ? 2 : 3);
   const rest = apps.length - list.length;
   const labels = !!A.compactLabels && list.length <= 3;
   cmp.innerHTML = `<span class="cp-grid" title="Buka Pintasan Aplikasi">${GRID}</span>`
     + list.map((a) => `<button class="cp-app" data-id="${a.id}" title="${esc(a.name)}" aria-label="Buka ${esc(a.name)}">${a.icon ? `<img src="${a.icon}" alt="">` : `<span class="lt">${esc(a.name.charAt(0).toUpperCase())}</span>`}${labels ? `<span class="cl">${esc(a.name)}</span>` : ''}</button>`).join('')
     + (rest > 0 ? `<span class="cp-more">+${rest}</span>` : '');
   const w = 24 + 34 + list.reduce((s, a) => s + (labels ? 44 + Math.min(96, a.name.length * 7) : 42), 0) + (rest > 0 ? 52 : 0);
-  island.style.setProperty('--cmp-w', `${Math.min(560, w)}px`);
+  island.style.setProperty('--cmp-w', `${Math.min(228, Math.max(188, w))}px`);
 }
 
 // Pill audio: ikon speaker, persen, bar volume, dan batang aktivitas (sama dengan tab)
@@ -97,6 +101,8 @@ function sync() {
   const onTranslate = kind === 'translate';
   const onQuick = kind === 'quick-settings';
   const onMonitor = kind === 'system-monitor';
+  const onNetwork = kind === 'network-monitor';
+  const onBattery = kind === 'battery-power';
   const unread = unreadCount();
   const timing = !!document.getElementById('pill')?.classList.contains('timing');
   const collapsed = island.dataset.mode === 'collapsed';
@@ -108,11 +114,15 @@ function sync() {
   island.classList.toggle('cmp-translate', onTranslate);
   island.classList.toggle('cmp-quick-settings', onQuick);
   island.classList.toggle('cmp-system-monitor', onMonitor);
+  island.classList.toggle('cmp-network-monitor', onNetwork);
+  island.classList.toggle('cmp-battery-power', onBattery);
   cmp.classList.toggle('apps', onApps);
   cmp.classList.toggle('audio', onAudio_);
   cmp.classList.toggle('notif', onNotif);
   cmp.classList.toggle('quick-settings',onQuick);
   cmp.classList.toggle('system-monitor',onMonitor);
+  cmp.classList.toggle('network-monitor',onNetwork);
+  cmp.classList.toggle('battery-power',onBattery);
   if (onFiles) {
     cmp.innerHTML = `<span class="cp-ico">${compactIcon(variant)}</span><b>${count}</b><i class="cp-sep"></i><span class="cp-chev">${CHEV}</span>`;
   } else if (onApps) renderApps();
@@ -121,7 +131,9 @@ function sync() {
   else if (onTranslate) renderTranslate();
   else if (onQuick) cmp.innerHTML = `<span class="cq-ico">${svg('<path d="M4 7h7m4 0h5M4 17h3m4 0h9"/><circle cx="13" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>')}</span><b>Quick Settings</b>${Q.compactStatus&&quickSnapshot?`<small>${quickSnapshot.wifiConnected?'Wi-Fi':quickSnapshot.bluetoothEnabled?'Bluetooth':'Ready'}</small>`:''}`;
   else if (onMonitor) { const ram=SM.compactMetric==='ram';const v=ram?monitorSnapshot?.memoryPercent:monitorSnapshot?.cpuPercent;cmp.innerHTML = `<span class="cm-ico">${svg('<path d="M2 13h4l3-8 5 14 3-8h5"/>')}</span><b>${ram?'RAM':'CPU'} ${v==null?'—':`${Math.round(v)}%`}</b>`; }
-  cmp.hidden = !(onFiles || onApps || onAudio_ || onNotif || onTranslate || onQuick || onMonitor);
+  else if (onNetwork) cmp.innerHTML=`<i class="nm-compact-status ${networkSnapshot?.status==='connected'?'connected':networkSnapshot?.status==='disconnected'?'disconnected':''}"></i><span class="cm-ico">${svg('<path d="M2 8.8a15 15 0 0 1 20 0M5 12a10.5 10.5 0 0 1 14 0m-11 3.2a5.7 5.7 0 0 1 8 0M12 19h.01"/>')}</span><b>↓ ${networkSnapshot?fmt(networkSnapshot.downloadBytesPerSecond):'—'} &nbsp; ↑ ${networkSnapshot?fmt(networkSnapshot.uploadBytesPerSecond):'—'}</b>`;
+  else if (onBattery) cmp.innerHTML=`<span class="cm-ico">${svg('<rect x="3" y="6" width="17" height="12" rx="2.5"/><path d="M22 10v4"/>')}</span><b>${batterySnapshot?.percent==null?'No battery':`${batterySnapshot.percent}%`}${batterySnapshot?.charging?' ⚡':''}</b>`;
+  cmp.hidden = !(onFiles || onApps || onAudio_ || onNotif || onTranslate || onQuick || onMonitor || onNetwork || onBattery);
   watch('compact-audio', kind === 'audio' ? 'master' : 'off', cmp);
   // Ikon berdenyut sebentar setelah notifikasi baru masuk
   clearTimeout(pulseTimer);
@@ -141,7 +153,7 @@ function readSettings(s) {
 document.addEventListener('island:modechange', (e) => {
   const d = e.detail;
   const left = d.mode === 'collapsed' && d.reason === 'pointerleave';
-  kind = left && d.tab === 'files' ? 'files' : left && d.tab === 'apps' ? 'apps' : left && d.tab === 'audio' ? 'audio' : left && d.tab === 'translate' ? 'translate' : left && d.tab === 'quick-settings' ? 'quick-settings' : left && d.tab === 'system-monitor' ? 'system-monitor' : null;
+  kind = left && d.tab === 'files' ? 'files' : left && d.tab === 'apps' ? 'apps' : left && d.tab === 'audio' ? 'audio' : left && d.tab === 'translate' ? 'translate' : left && d.tab === 'quick-settings' ? 'quick-settings' : left && d.tab === 'system-monitor' ? 'system-monitor' : left && d.tab === 'network-monitor' ? 'network-monitor' : left && d.tab === 'battery-power' ? 'battery-power' : null;
   if (kind === 'files') refreshTray(); else if (kind === 'apps') refreshApps(); else sync();
 });
 window.api.onDataChanged((d) => {
@@ -153,6 +165,8 @@ onAudio(() => { if (kind === 'audio') sync(); });
 onNotifs(() => sync());
 window.addEventListener('quick-settings-state',(e)=>{quickSnapshot=e.detail||null;if(kind==='quick-settings')sync();});
 window.addEventListener('system-monitor:snapshot',(e)=>{monitorSnapshot=e.detail||null;if(kind==='system-monitor')sync();});
+window.addEventListener('network-monitor:snapshot',(e)=>{networkSnapshot=e.detail||null;if(kind==='network-monitor')sync();});
+window.addEventListener('battery-power:snapshot',(e)=>{batterySnapshot=e.detail||null;if(kind==='battery-power')sync();});
 // Pill waktu (timer/fokus/alarm) menandai dirinya dengan kelas 'timing'; pill notifikasi harus mundur saat itu terjadi
 const pillEl = document.getElementById('pill');
 if (pillEl) new MutationObserver(() => sync()).observe(pillEl, { attributes: true, attributeFilter: ['class'] });

@@ -28,6 +28,10 @@ const DEFAULT_SETTINGS = {
   accentFromCover: false,
   trackToast: true,     // info lagu saat berganti (mode collapse)
   lyricsOffset: 0,      // penyesuaian waktu lirik (ms), positif = lebih awal
+  lyricsAnimationPreset: 'smooth',
+  lyricsAnimationDurationMs: 420,
+  lyricsAnimationDistancePx: 12,
+  lyricsAnimationIntensity: 70,
   tray: { view: 'grid', sort: 'recent', size: 'md', compactIcon: 'outline', showPinned: true, showRef: false, pinnedFirst: true },
   apps: { view: 'grid', size: 'md', style: 'default', sort: 'manual', favCount: 4, favFirst: true, compactLabels: false, compactMode: 'icons' },
   weather: null,        // { loc, auto, units, recent }
@@ -45,6 +49,8 @@ const DEFAULT_SETTINGS = {
   notes: { enabled: true, autosave: true },
   quickSettings: { enabled: true, compactStatus: true, controls: { wifi: true, bluetooth: true, airplane: true, doNotDisturb: true, battery: true, microphone: true, brightness: true, nightLight: true, theme: true, volume: true } },
   systemMonitor: { enabled: true, intervalMs: 1000, graphHistorySeconds: 60, processMonitoring: true, processCount: 5, sort: 'cpu', compactMetric: 'cpu', alertsEnabled: false, cpuThreshold: 95, ramThreshold: 90, metrics: { cpu: true, ram: true, gpu: true, disk: true, temperature: true, network: true } },
+  networkMonitor: { enabled: true, monthlyAccounting: true, monthlyLimitGb: null, preferredWifiId: null, retainHistory: true, notifications: true, showNetworkName: false, graphHistorySeconds: 60, updateIntervalMs: 1000 },
+  batteryPower: { enabled: true, showEstimate: true, showHistory: true, recommendations: true, notifications: true, lowThreshold: 20, criticalThreshold: 10 },
   display: { mode: 'primary', monitors: {} }
 };
 
@@ -274,6 +280,7 @@ if (!gotLock) {
     helper.send({ cmd: 'companion-init' });
     helper.send({ cmd: 'clipboard-config', enabled: settings.clipboard?.enabled !== false, capture: settings.clipboard?.capture !== false, maxItems: settings.clipboard?.maxItems || 200 });
     sharedServices.updateSystemMonitor(settings.systemMonitor);
+    sharedServices.updateNetworkPower(settings);
     screen.on('display-metrics-changed', () => refreshIslandWindows());
     screen.on('display-removed', () => refreshIslandWindows());
     screen.on('display-added', (event, display) => handleDisplayAdded(event, display));
@@ -362,6 +369,8 @@ function routeIslandHelperCommand(sender, command) {
     sharedServices.setAudio(sender.id, command.mode || 'off');
   } else if (command?.cmd === 'system-monitor-config') {
     sharedServices.setSystemMonitor(sender.id, command, settings.systemMonitor);
+  } else if (command?.cmd === 'network-power-request') {
+    sharedServices.setNetworkPower(sender.id, command, settings);
   } else helper.send(command);
 }
 
@@ -369,7 +378,7 @@ function releaseIslandRequests(context) {
   if (context.requestsReleased) return;
   context.requestsReleased = true;
   const senderId = context.senderId;
-  sharedServices.release(senderId, settings.systemMonitor);
+  sharedServices.release(senderId, settings);
 }
 
 // ---------- Window Pengaturan (terpisah dari island) ----------
@@ -461,6 +470,7 @@ ipcMain.handle('settings:set', (_e, patch) => {
   }
   if (patch.clipboard) helper.send({ cmd: 'clipboard-config', enabled: settings.clipboard?.enabled !== false, capture: settings.clipboard?.capture !== false, maxItems: settings.clipboard?.maxItems || 200 });
   if (patch.systemMonitor) sharedServices.updateSystemMonitor(settings.systemMonitor);
+  if (patch.networkMonitor || patch.batteryPower) sharedServices.updateNetworkPower(settings);
   return settings && typeof settings === 'object' ? settings : { ...DEFAULT_SETTINGS, display: normalizeDisplayConfig(DEFAULT_SETTINGS.display) };
 });
 

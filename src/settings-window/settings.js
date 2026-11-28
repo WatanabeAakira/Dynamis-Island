@@ -399,6 +399,26 @@ function pageClock(root) {
 function pageLyrics(root) {
   const displayMode = S.lyricsDisplayMode || 'original';
   const system = S.romajiSystem || 'hepburn';
+  const presetOptions = [
+    ['subtle', 'Subtle'], ['smooth', 'Smooth'], ['kinetic', 'Kinetic'], ['elastic', 'Elastic'],
+    ['morph', 'Morph'], ['wave', 'Wave'], ['cinematic', 'Cinematic'], ['custom', 'Custom']
+  ];
+  const selectedPreset = presetOptions.some(([v]) => v === S.lyricsAnimationPreset) ? S.lyricsAnimationPreset : 'smooth';
+  const presetSelect = h('select', { 'aria-label': 'Lyrics animation preset' });
+  presetOptions.forEach(([v, label]) => presetSelect.append(h('option', { value: v }, label)));
+  presetSelect.value = selectedPreset;
+  const presetControl = customDropdown(presetSelect);
+  const customRows = [];
+  const durationRow = row('Custom duration', 'Duration of a lyric line transition.', stepper({ value: S.lyricsAnimationDurationMs || 420, min: 100, max: 1000, step: 50, unit: ' ms' }, (v) => save({ lyricsAnimationDurationMs: v })));
+  const distanceRow = row('Custom travel distance', 'How far the lyric moves during a transition.', stepper({ value: S.lyricsAnimationDistancePx ?? 12, min: 0, max: 32, step: 2, unit: ' px' }, (v) => save({ lyricsAnimationDistancePx: v })));
+  const intensityRow = row('Custom intensity', 'Controls movement and fade strength.', stepper({ value: S.lyricsAnimationIntensity ?? 70, min: 0, max: 100, step: 10, unit: ' %' }, (v) => save({ lyricsAnimationIntensity: v })));
+  customRows.push(durationRow, distanceRow, intensityRow);
+  const paintCustom = (v) => customRows.forEach((r) => { r.hidden = v !== 'custom'; r.style.display = r.hidden ? 'none' : ''; });
+  paintCustom(selectedPreset);
+  presetSelect.addEventListener('change', async () => {
+    paintCustom(presetSelect.value);
+    await save({ lyricsAnimationPreset: presetSelect.value });
+  });
   const romanizationRow = row('Romanization System', 'Dipakai untuk lirik Jepang saat mode Romaji aktif.', segmented([
     ['hepburn', 'Hepburn'], ['nippon', 'Nippon-shiki'], ['passport', 'Passport-shiki']
   ], system, (v) => save({ romajiSystem: v })));
@@ -443,6 +463,8 @@ function pageLyrics(root) {
     card(
       displayRow,
       romanizationRow,
+      row('Lyrics animation', 'Choose how the active lyric line changes.', presetControl),
+      ...customRows,
       h('div', { class: 'row' }, h('div', { class: 'rt' }, h('b', {}, 'Folder lirik tambahan'), dirDesc), dirBtns),
       row('Penyesuaian waktu lirik', 'Berlaku untuk semua lagu. Nilai positif membuat lirik muncul lebih awal, nilai negatif lebih lambat. Pakai ini jika lirik terasa selalu terlambat atau terlalu cepat.',
         stepper({ value: S.lyricsOffset || 0, min: -5000, max: 5000, step: 100, unit: 'ms' }, (v) => save({ lyricsOffset: v })))
@@ -757,6 +779,30 @@ const PAGES = {
       row('RAM alert threshold', 'Trigger when memory usage reaches this level.', stepper({value:m.ramThreshold||90,min:50,max:99,step:5,unit:' %'},async(v)=>{S=await save({systemMonitor:{...(S.systemMonitor||{}),ramThreshold:v}});})),
       h('p',{class:'note'},'GPU utilization, GPU memory, disk activity, and temperature sensors are marked unavailable until a reliable hardware provider is available.')));
   } },
+  'network-monitor': { title: 'Network Monitor', desc: 'Wi-Fi speed, local monthly data accounting, and graph settings.', icon: IC.general, build: (root) => {
+    const n=S.networkMonitor||{};
+    root.append(group('General', 'Wi-Fi statistics are processed locally. Network names and addresses are not collected.', IC.general,
+      row('Enable Network Monitor', 'Show the Network Monitor tab.', toggle(n.enabled!==false,async(v)=>{S=await save({networkMonitor:{...n,enabled:v}});})),
+      row('Monthly network accounting', 'Count traffic on the active Wi-Fi or Ethernet adapter. Gaps while the app is closed or an adapter changes are not estimated.', toggle(n.monthlyAccounting!==false,async(v)=>{S=await save({networkMonitor:{...n,monthlyAccounting:v}});})),
+      row('Monthly data limit', 'Optional informational limit in GB; it never blocks internet access.', stepper({value:Number(n.monthlyLimitGb)||0,min:0,max:5000,step:10,unit:' GB (0 = off)'},async(v)=>{S=await save({networkMonitor:{...n,monthlyLimitGb:v||null}});}))),
+      row('Monthly limit notification', 'Notify once when combined Wi-Fi and Ethernet usage reaches the configured limit.', toggle(n.notifications!==false,async(v)=>{S=await save({networkMonitor:{...n,notifications:v}});})),
+      group('Display & history', 'The graph uses bounded recent samples. Usage records are kept on this device.', IC.features,
+        row('Keep monthly history', 'Retain up to 24 previous monthly totals locally.', toggle(n.retainHistory!==false,async(v)=>{S=await save({networkMonitor:{...n,retainHistory:v}});})),
+        row('Graph history', 'Recent samples held in memory.', segmented([[30,'30 sec'],[60,'60 sec'],[120,'120 sec']],n.graphHistorySeconds||60,async(v)=>{S=await save({networkMonitor:{...n,graphHistorySeconds:v}});})),
+        h('p',{class:'note'},'Collected locally: Wi-Fi adapter counters and adapter identity needed to prevent duplicate counting. No IP, MAC, packet, or per-app data is collected.')));
+  } },
+  'battery-power': { title: 'Battery & Power', desc: 'Battery status, Windows power modes, and recommendations.', icon: IC.behavior, build: (root) => {
+    const b=S.batteryPower||{};
+    root.append(group('General', 'Unsupported battery measurements are left unavailable.', IC.general,
+      row('Enable Battery & Power', 'Show the Battery & Power tab.', toggle(b.enabled!==false,async(v)=>{S=await save({batteryPower:{...b,enabled:v}});})),
+      row('Show remaining time estimate', 'Show Windows estimated remaining time when available.', toggle(b.showEstimate!==false,async(v)=>{S=await save({batteryPower:{...b,showEstimate:v}});})),
+      row('Show power recommendations', 'Display informational tips based on reported battery state.', toggle(b.recommendations!==false,async(v)=>{S=await save({batteryPower:{...b,recommendations:v}});}))),
+      group('Notifications', 'Battery notifications use Windows reported percentage.', IC.notif,
+        row('Battery alerts', 'Allow low and critical battery alerts when supported.', toggle(b.notifications!==false,async(v)=>{S=await save({batteryPower:{...b,notifications:v}});})),
+        row('Low battery threshold', 'Informational alert threshold.', stepper({value:b.lowThreshold||20,min:10,max:50,step:5,unit:' %'},async(v)=>{S=await save({batteryPower:{...b,lowThreshold:v}});})),
+        row('Critical battery threshold', 'Critical alert threshold.', stepper({value:b.criticalThreshold||10,min:5,max:20,step:5,unit:' %'},async(v)=>{S=await save({batteryPower:{...b,criticalThreshold:v}});})),
+        h('p',{class:'note'},'Windows power plan changes are applied only after the OS confirms the selected plan. Current draw and battery health are omitted because this device API does not provide reliable values.')));
+  } },
   tray: { title: 'File Tray', desc: 'Tampilan, urutan, dan lencana item di File Tray.', icon: IC.tray, build: pageTray },
   lyrics: { title: 'Lirik', desc: 'Sumber, waktu, dan salinan lirik di tab Media.', icon: IC.lyrics, build: pageLyrics }
 };
@@ -766,8 +812,8 @@ const NAV = [
 ];
 
 // Warna ikon per halaman (gaya ikon sistem macOS)
-const TILE = { general: '#8e8e93', language: '#5e5ce6', appearance: '#0a84ff', behavior: '#ff9f0a', clock: '#0a84ff', ai: '#bf5af2', translation: '#5d9a73', notif: '#ff453a', apps: '#30b0c7', tray: '#5e5ce6', lyrics: '#ff375f', clipboard: '#8b5cf6', notes: '#c084fc', 'quick-settings':'#38bdf8','system-monitor':'#22d3ee' };
-const SECTIONS = [{ id: 'general' }, { id: 'language' }, { id: 'appearance' }, { id: 'behavior' }, { sec: 'Display', ids: ['display'] }, { sec: 'Fitur', ids: ['ai', 'translation', 'notif', 'apps', 'tray', 'lyrics', 'clock', 'clipboard', 'notes','quick-settings','system-monitor'] }];
+const TILE = { general: '#8e8e93', language: '#5e5ce6', appearance: '#0a84ff', behavior: '#ff9f0a', clock: '#0a84ff', ai: '#bf5af2', translation: '#5d9a73', notif: '#ff453a', apps: '#30b0c7', tray: '#5e5ce6', lyrics: '#ff375f', clipboard: '#8b5cf6', notes: '#c084fc', 'quick-settings':'#38bdf8','system-monitor':'#22d3ee','network-monitor':'var(--accent)','battery-power':'var(--accent)' };
+const SECTIONS = [{ id: 'general' }, { id: 'language' }, { id: 'appearance' }, { id: 'behavior' }, { sec: 'Display', ids: ['display'] }, { sec: 'Fitur', ids: ['ai', 'translation', 'notif', 'apps', 'tray', 'lyrics', 'clock', 'clipboard', 'notes','quick-settings','system-monitor','network-monitor','battery-power'] }];
 
 let current = 'general';
 function show(id) {

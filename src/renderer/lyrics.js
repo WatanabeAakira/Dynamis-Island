@@ -1,6 +1,6 @@
 // State lirik, panel 3 baris untuk tab Media, dan mini lyrics untuk mode collapse.
 
-export const L = { mode: false, key: '', status: 'idle', lines: [], synced: false, source: '', flash: '', displayMode: 'original' };
+export const L = { mode: false, key: '', status: 'idle', lines: [], synced: false, source: '', flash: '', displayMode: 'original', animationPreset: 'smooth' };
 const subs = new Set();
 let token = 0;
 let lastTrack = null;
@@ -11,10 +11,43 @@ const LEAD_MS = 120; // sedikit lebih awal supaya terasa pas
 let offsetMs = 0;     // penyesuaian dari Pengaturan (positif = lirik lebih awal)
 export const setLyricsOffset = (ms) => { offsetMs = Number(ms) || 0; };
 
+const LYRIC_ANIMATION_PRESETS = {
+  subtle: { duration: 180, distance: 4, intensity: 0.35 },
+  smooth: { duration: 420, distance: 12, intensity: 0.7 },
+  kinetic: { duration: 260, distance: 22, intensity: 0.9 },
+  elastic: { duration: 620, distance: 12, intensity: 0.85 },
+  morph: { duration: 360, distance: 8, intensity: 0.65 },
+  wave: { duration: 460, distance: 14, intensity: 0.7 },
+  cinematic: { duration: 700, distance: 18, intensity: 0.8 }
+};
+let lyricAnimation = { preset: 'smooth', ...LYRIC_ANIMATION_PRESETS.smooth };
+
+function applyLyricAnimation(el) {
+  if (!el) return;
+  el.dataset.animation = lyricAnimation.preset;
+  el.style.setProperty('--lyric-duration', `${lyricAnimation.duration}ms`);
+  el.style.setProperty('--lyric-distance', `${lyricAnimation.distance}px`);
+  el.style.setProperty('--lyric-intensity', String(lyricAnimation.intensity));
+  el.style.setProperty('--lyric-start-opacity', String(1 - lyricAnimation.intensity * 0.45));
+}
+
 export function setLyricsDisplaySettings(settings = {}) {
   const displayMode = ['original', 'romaji', 'both'].includes(settings.lyricsDisplayMode) ? settings.lyricsDisplayMode : 'original';
   const system = ['hepburn', 'nippon', 'passport'].includes(settings.romajiSystem) ? settings.romajiSystem : 'hepburn';
-  if (L.displayMode === displayMode && L.romajiSystem === system) return;
+  const preset = Object.hasOwn(LYRIC_ANIMATION_PRESETS, settings.lyricsAnimationPreset) || settings.lyricsAnimationPreset === 'custom'
+    ? settings.lyricsAnimationPreset : 'smooth';
+  const base = LYRIC_ANIMATION_PRESETS[preset] || LYRIC_ANIMATION_PRESETS.smooth;
+  lyricAnimation = preset === 'custom' ? {
+    preset,
+    duration: Math.max(100, Math.min(1000, Number(settings.lyricsAnimationDurationMs) || 420)),
+    distance: Math.max(0, Math.min(32, Number(settings.lyricsAnimationDistancePx ?? 12))),
+    intensity: Math.max(0, Math.min(100, Number(settings.lyricsAnimationIntensity ?? 70))) / 100
+  } : { preset, ...base };
+  L.animationPreset = preset;
+  applyLyricAnimation(document.querySelector('.l-track'));
+  applyLyricAnimation(document.getElementById('pill-lyric'));
+  const displayChanged = L.displayMode !== displayMode || L.romajiSystem !== system;
+  if (!displayChanged) return;
   L.displayMode = displayMode;
   L.romajiSystem = system;
   if (lastTrack && L.status !== 'idle') reloadLyrics();
@@ -156,6 +189,7 @@ export function createPanel(root, opts = {}) {
   const q = (c) => root.querySelector(c);
   const note = q('.l-note'), msg = q('.l-msg'), pick = q('.l-pick'), swap = q('.l-swap');
   const flashEl = q('.l-flash'), track = q('.l-track');
+  applyLyricAnimation(track);
   const [prev, cur, next] = track.querySelectorAll('.l-slot');
   pick.addEventListener('click', importFile);
   swap.addEventListener('click', importFile);
@@ -182,13 +216,14 @@ export function createPanel(root, opts = {}) {
   };
 
   function slide(direction = 1) {
-    track.style.transition = 'none';
-    track.style.transform = `translateY(${direction < 0 ? '-12px' : '12px'})`;
-    track.style.opacity = '.55';
+    track.dataset.direction = direction < 0 ? 'up' : 'down';
+    const signedDistance = (direction < 0 ? -1 : 1) * lyricAnimation.distance;
+    track.style.setProperty('--lyric-shift', `${signedDistance}px`);
+    track.style.setProperty('--lyric-half-shift', `${signedDistance * 0.5}px`);
+    track.style.setProperty('--lyric-overshoot', `${signedDistance * -0.12}px`);
+    track.classList.remove('is-moving');
     void track.offsetWidth;
-    track.style.transition = 'transform .42s cubic-bezier(.2,.72,.2,1), opacity .34s ease';
-    track.style.transform = '';
-    track.style.opacity = '';
+    track.classList.add('is-moving');
   }
 
   function setCur(line) {
@@ -326,6 +361,7 @@ export function initMini({ getPos }) {
     romajiEl.hidden = !showRomaji;
     const measured = showRomaji ? (ctx.measureText(display).width > ctx.measureText(romaji).width ? display : romaji) : display;
     island.style.setProperty('--mini-w', widthFor(measured) + 'px');
+    applyLyricAnimation(lyric);
     lyric.classList.remove('swap');
     void lyric.offsetWidth;
     lyric.classList.add('swap');

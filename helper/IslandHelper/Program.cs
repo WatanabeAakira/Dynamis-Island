@@ -28,6 +28,7 @@ static class Program
     static DesktopCompanion? companion;
     static QuickSettingsService? quickSettings;
     static SystemMonitorService? systemMonitor;
+    static NetworkPowerService? networkPower;
     static DisplayMonitorService? displayMonitors;
 
     static string SessionId(GlobalSystemMediaTransportControlsSession s) => s.SourceAppUserModelId ?? "";
@@ -43,6 +44,7 @@ static class Program
         companion.Start();
         quickSettings = new QuickSettingsService(Send); quickSettings.Start();
         systemMonitor = new SystemMonitorService(Send);
+        networkPower = new NetworkPowerService(Send, args.Length > 0 ? args[0] : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Dynamis Island"));
         displayMonitors = new DisplayMonitorService(Send);
         if (args.Contains("--notification-capture-test", StringComparer.OrdinalIgnoreCase))
         {
@@ -286,6 +288,7 @@ static class Program
         companion?.Dispose();
         quickSettings?.Dispose();
         systemMonitor?.Dispose();
+        networkPower?.Dispose();
         displayMonitors?.Dispose();
         Environment.Exit(0); // Electron menutup stdin -> helper ikut berhenti
     }
@@ -303,6 +306,8 @@ static class Program
         if (cmd != null && (cmd.StartsWith("companion-") || cmd.StartsWith("clipboard-") || cmd.StartsWith("notes-"))) { companion?.Handle(doc.RootElement); return; }
         if (cmd != null && cmd.StartsWith("quick-settings-")) { if (quickSettings != null) await quickSettings.Handle(cmd, doc.RootElement); return; }
         if (cmd == "system-monitor-config") { systemMonitor?.Configure(doc.RootElement); return; }
+        if (cmd == "network-power-config") { networkPower?.Configure(doc.RootElement); return; }
+        if (cmd == "power-mode-set") { networkPower?.SetPowerMode(doc.RootElement); return; }
         if (cmd == "copy-text-config")
         {
             var enable = doc.RootElement.TryGetProperty("enabled", out var enabled) && enabled.GetBoolean();

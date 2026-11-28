@@ -56,7 +56,7 @@ module.exports = {
   send(obj) {
     if (!proc || !proc.stdin.writable) return false;
     try {
-      if (obj && ['companion-init', 'clipboard-config', 'audio-watch', 'system-monitor-config'].includes(obj.cmd)) replayable.set(obj.cmd, obj);
+      if (obj && ['companion-init', 'clipboard-config', 'audio-watch', 'system-monitor-config', 'network-power-config'].includes(obj.cmd)) replayable.set(obj.cmd, obj);
       proc.stdin.write(JSON.stringify(obj) + '\n');
       return true;
     } catch (error) {

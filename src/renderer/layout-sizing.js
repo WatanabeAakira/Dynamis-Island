@@ -3,7 +3,8 @@ export const EXPANDED_HEIGHT = Object.freeze({ min: 200, default: 260, max: 360 
 export const FEATURE_HEIGHTS = Object.freeze({
   media: 260, audio: 260, timer: 240, focus: 260, clock: 260,
   'copy-text': 310, translate: 330, calendar: 300, ai: 310,
-  notif: 330, files: 330, apps: 300, weather: 300, settings: 260
+  notif: 330, files: 330, apps: 300, weather: 300, settings: 260,
+  'network-monitor': 260, 'battery-power': 260
 });
 
 export function clampExpandedHeight(value, fallback = EXPANDED_HEIGHT.default) {
